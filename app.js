@@ -375,7 +375,10 @@ function renderMatchDetail() {
       <div><span class="result-badge ${result.toLowerCase()}">${result}</span><h3>${isPractice ? `${escapeHTML(item.playerName)} practice session` : `${escapeHTML(item.playerName)} <strong>${item.playerLegs}–${item.opponentLegs}</strong> ${escapeHTML(item.opponentName || "Opponent")}`}</h3><p>${formatDate(item.finishedAt, true)}</p></div>
       <div class="average-callout"><span>Match average</span><strong>${totals.average.toFixed(2)}</strong></div>
     </section>
-    <button id="editPastMatchButton" class="secondary-button edit-result-button" type="button">Edit this result</button>
+    <div class="result-management-actions">
+      <button id="editPastMatchButton" class="secondary-button" type="button">Edit this result</button>
+      <button id="deletePastMatchButton" class="secondary-button danger-text" type="button">Delete result</button>
+    </div>
     <section class="detail-grid">
       ${valueHTML("Darts thrown", totals.darts == null ? "Not recorded" : totals.darts)}
       ${valueHTML("Total scored", totals.points)}
@@ -390,7 +393,19 @@ function renderMatchDetail() {
       ${legs.length ? `<div class="leg-list">${legs.map((leg) => `<div class="leg-row"><div><strong>Leg ${leg.number}</strong><span>${leg.won === true ? "Won" : leg.won === false ? "Lost" : "Result not recorded"}</span></div><div><strong>${Number(leg.average || 0).toFixed(2)} avg</strong><span>${leg.points} scored · ${leg.darts} darts · High ${leg.highestVisit ?? "—"}</span></div></div>`).join("")}</div>` : '<p class="empty-state compact">Per-leg data was not stored for this older match.</p>'}
     </section>`;
   $("editPastMatchButton").addEventListener("click", openEditMatch);
+  $("deletePastMatchButton").addEventListener("click", deleteMatchResult);
   attachVisitListeners();
+}
+
+function deleteMatchResult() {
+  const item = data.history.find((record) => record.id === selectedMatchId);
+  if (!item) return;
+  const opponent = item.mode === "practice" ? "practice session" : `match against ${item.opponentName || "Opponent"}`;
+  if (!confirm(`Delete ${item.playerName}'s ${opponent} from ${formatDate(item.finishedAt)}? This cannot be undone.`)) return;
+  data.history = data.history.filter((record) => record.id !== selectedMatchId);
+  saveData();
+  selectedMatchId = null;
+  setView(["setup", "history", "profile"].includes(detailBackView) ? detailBackView : "history");
 }
 
 function toDateTimeLocal(value) {
