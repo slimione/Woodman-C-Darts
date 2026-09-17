@@ -1,0 +1,21 @@
+{
+  "name": "Woodman C Darts Scorer",
+  "short_name": "Woodman C",
+  "description": "An offline 501 darts scorer for Woodman C Team.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#09130f",
+  "theme_color": "#10241d",
+  "categories": ["sports", "utilities"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%2310231c'/%3E%3Ccircle cx='256' cy='256' r='165' fill='%23f4c542'/%3E%3Ccircle cx='256' cy='256' r='112' fill='%2310231c'/%3E%3Ccircle cx='256' cy='256' r='58' fill='%23f4c542'/%3E%3Cpath d='M256 45v422M45 256h422M107 107l298 298M405 107L107 405' stroke='%23f4c542' stroke-width='16'/%3E%3Ccircle cx='256' cy='256' r='14' fill='%23ff756d'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#10241d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Woodman C">
+  <meta name="description" content="Offline darts scorer for Woodman C Team">
+  <title>Woodman C Darts</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">WOODMAN C TEAM</p>
+      <h1>Darts Scorer</h1>
+    </div>
+    <button id="menuButton" class="icon-button" aria-label="Open menu" aria-expanded="false">☰</button>
+  </header>
+
+  <main>
+    <section id="setupView" class="view active" aria-labelledby="setupTitle">
+      <div class="card setup-card">
+        <p class="eyebrow">BEST OF 3 LEGS · 501</p>
+        <h2 id="setupTitle">Start a match</h2>
+        <label for="playerSelect">Player profile</label>
+        <div class="profile-row">
+          <select id="playerSelect" aria-label="Choose player"></select>
+          <button id="playerStatsButton" class="small-button" type="button">Stats</button>
+          <button id="deletePlayerButton" class="small-button danger-text" type="button">Delete</button>
+        </div>
+        <label for="newPlayerName">Or add a player</label>
+        <div class="profile-row">
+          <input id="newPlayerName" type="text" maxlength="30" autocomplete="name" placeholder="Player name">
+          <button id="addPlayerButton" class="small-button" type="button">Add</button>
+        </div>
+        <fieldset class="match-mode-fieldset">
+          <legend>Who are you playing?</legend>
+          <div class="mode-options">
+            <label class="mode-option"><input type="radio" name="matchMode" value="opponent"><span><strong>Opponent</strong><small>Record a competitive result</small></span></label>
+            <label class="mode-option"><input type="radio" name="matchMode" value="practice"><span><strong>Practice</strong><small>Track a solo practice session</small></span></label>
+          </div>
+        </fieldset>
+        <div id="opponentFields" hidden>
+          <label for="opponentName">Who are you playing against?</label>
+          <input id="opponentName" type="text" maxlength="30" placeholder="Opponent or team name">
+        </div>
+        <button id="startMatchButton" class="primary-button" type="button">Start match</button>
+        <p id="setupMessage" class="message" role="status"></p>
+      </div>
+
+      <section class="card history-card" aria-labelledby="historyTitle">
+        <div class="section-heading">
+          <h2 id="historyTitle">Match history</h2>
+          <button id="viewAllHistoryButton" class="small-button" type="button">View all</button>
+        </div>
+        <div id="historyList" class="history-list"></div>
+      </section>
+    </section>
+
+    <section id="historyView" class="view" aria-labelledby="allHistoryTitle">
+      <div class="view-heading">
+        <button class="back-button" data-back="setup" type="button" aria-label="Back to profiles">←</button>
+        <div><p class="eyebrow">RESULTS</p><h2 id="allHistoryTitle">Match history</h2></div>
+      </div>
+      <div class="card history-card">
+        <div class="history-toolbar">
+          <label for="historyPlayerFilter">Player</label>
+          <select id="historyPlayerFilter"><option value="">All players</option></select>
+        </div>
+        <div id="allHistoryList" class="history-list"></div>
+      </div>
+    </section>
+
+    <section id="detailView" class="view" aria-labelledby="detailTitle">
+      <div class="view-heading">
+        <button class="back-button" data-back="history" type="button" aria-label="Back to match history">←</button>
+        <div><p class="eyebrow">MATCH STATS</p><h2 id="detailTitle">Match details</h2></div>
+      </div>
+      <div id="matchDetail"></div>
+    </section>
+
+    <section id="editView" class="view" aria-labelledby="editMatchTitle">
+      <div class="view-heading">
+        <button class="back-button" data-back="detail" type="button" aria-label="Cancel editing">←</button>
+        <div><p class="eyebrow">EDIT RESULT</p><h2 id="editMatchTitle">Edit past match</h2></div>
+      </div>
+      <form id="editMatchForm" class="card edit-form">
+        <div class="edit-grid">
+          <label>Date and time<input id="editFinishedAt" type="datetime-local" required></label>
+          <label>Session type<select id="editMode"><option value="opponent">Opponent</option><option value="practice">Practice</option></select></label>
+          <label id="editOpponentLabel">Opponent<input id="editOpponentName" type="text" maxlength="30"></label>
+          <label>Player legs<input id="editPlayerLegs" type="number" min="0" max="2" required></label>
+          <label id="editOpponentLegsLabel">Opponent legs<input id="editOpponentLegs" type="number" min="0" max="2" required></label>
+          <label>Match average<input id="editAverage" type="number" min="0" max="180" step="0.01" required></label>
+          <label>Darts thrown<input id="editDarts" type="number" min="0" step="1"></label>
+          <label>Total scored<input id="editPoints" type="number" min="0" step="1" required></label>
+          <label>Highest visit<input id="editHighestVisit" type="number" min="0" max="180" step="1" required></label>
+        </div>
+        <h3>Visit bands</h3>
+        <div class="edit-band-grid">
+          <label>40–74<input id="editBand40" type="number" min="0" step="1"></label>
+          <label>75–99<input id="editBand75" type="number" min="0" step="1"></label>
+          <label>100–139<input id="editBand100" type="number" min="0" step="1"></label>
+          <label>140–179<input id="editBand140" type="number" min="0" step="1"></label>
+          <label>180<input id="editBand180" type="number" min="0" step="1"></label>
+        </div>
+        <h3>Leg breakdown</h3>
+        <div id="editLegs" class="edit-legs"></div>
+        <div class="edit-actions">
+          <button type="button" id="cancelEditButton" class="secondary-button">Cancel</button>
+          <button type="submit" class="primary-button">Save changes</button>
+        </div>
+        <p id="editMessage" class="message" role="alert"></p>
+      </form>
+    </section>
+
+    <section id="profileView" class="view" aria-labelledby="profileStatsTitle">
+      <div class="view-heading">
+        <button class="back-button" data-back="setup" type="button" aria-label="Back to profiles">←</button>
+        <div><p class="eyebrow">PLAYER PROFILE</p><h2 id="profileStatsTitle">Player stats</h2></div>
+      </div>
+      <div id="profileStats"></div>
+    </section>
+
+    <section id="gameView" class="view" aria-label="Current match">
+      <div class="match-strip">
+        <div>
+          <span id="playerName" class="player-name"></span>
+          <span id="legLabel" class="muted"></span>
+        </div>
+        <div class="legs-score"><span id="playerLegs">0</span><small>LEGS</small><span id="opponentLegs">0</span></div>
+      </div>
+
+      <section class="score-card">
+        <p class="eyebrow">SCORE REMAINING</p>
+        <output id="remainingScore" class="remaining">501</output>
+        <div class="score-meta">
+          <span>Match avg <strong id="averageValue">0.00</strong></span>
+          <span>Visits <strong id="visitCount">0</strong></span>
+        </div>
+      </section>
+
+      <section class="entry-card" aria-label="Enter visit score">
+        <output id="scoreEntry" class="score-entry" aria-live="polite">0</output>
+        <div class="keypad">
+          <button data-key="1">1</button><button data-key="2">2</button><button data-key="3">3</button>
+          <button data-key="4">4</button><button data-key="5">5</button><button data-key="6">6</button>
+          <button data-key="7">7</button><button data-key="8">8</button><button data-key="9">9</button>
+          <button id="clearButton" class="key-secondary">Clear</button><button data-key="0">0</button><button id="backspaceButton" class="key-secondary" aria-label="Backspace">⌫</button>
+        </div>
+        <button id="submitScoreButton" class="primary-button submit-button">Enter score</button>
+        <p id="gameMessage" class="message" role="alert"></p>
+      </section>
+
+      <section class="stats-card" aria-label="Match statistics">
+        <div><strong id="stat40">0</strong><span>40–74</span></div>
+        <div><strong id="stat75">0</strong><span>75–99</span></div>
+        <div><strong id="stat100">0</strong><span>100–139</span></div>
+        <div><strong id="stat140">0</strong><span>140–179</span></div>
+        <div><strong id="stat180">0</strong><span>180</span></div>
+      </section>
+
+      <div class="game-actions">
+        <button id="undoButton" class="secondary-button">Undo</button>
+        <button id="opponentWonButton" class="secondary-button danger-text">Opponent won leg</button>
+      </div>
+    </section>
+  </main>
+
+  <aside id="menuPanel" class="menu-panel" aria-hidden="true">
+    <button id="closeMenuButton" class="icon-button" aria-label="Close menu">×</button>
+    <h2>Menu</h2>
+    <button id="menuHomeButton" class="secondary-button">Profiles & history</button>
+    <button id="menuHistoryButton" class="secondary-button">Match history</button>
+    <button id="menuExportButton" class="secondary-button">Export backup</button>
+    <label class="secondary-button import-label">Import backup<input id="importInput" type="file" accept="application/json,.json"></label>
+    <p class="menu-note">This app works offline after its first load. Add it to your iPad Home Screen from Safari’s Share menu.</p>
+  </aside>
+  <div id="menuBackdrop" class="backdrop" hidden></div>
+
+  <dialog id="opponentDialog">
+    <form method="dialog">
+      <h2>Opponent won this leg?</h2>
+      <p>This will award the leg to your opponent.</p>
+      <div class="dialog-actions">
+        <button value="cancel" class="secondary-button">Cancel</button>
+        <button id="confirmOpponentButton" value="confirm" class="danger-button">Confirm</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="checkoutDialog">
+    <form method="dialog">
+      <p class="eyebrow">CHECKOUT</p>
+      <h2>How many darts?</h2>
+      <div class="checkout-options">
+        <button value="1" data-darts="1">1 dart</button>
+        <button value="2" data-darts="2">2 darts</button>
+        <button value="3" data-darts="3">3 darts</button>
+      </div>
+      <button value="cancel" class="text-button">Cancel</button>
+    </form>
+  </dialog>
+
+  <dialog id="legEndDialog">
+    <form method="dialog">
+      <p class="eyebrow">LEG COMPLETE</p>
+      <h2 id="legEndTitle"></h2>
+      <p id="legEndSummary"></p>
+      <button id="nextLegButton" value="next" class="primary-button">Next leg</button>
+      <button id="finishMatchButton" value="finish" class="primary-button" hidden>View result</button>
+    </form>
+  </dialog>
+
+  <dialog id="resultDialog">
+    <form method="dialog">
+      <p class="eyebrow">MATCH COMPLETE</p>
+      <h2 id="resultTitle"></h2>
+      <p id="resultSummary"></p>
+      <button id="resultDoneButton" value="done" class="primary-button">Done</button>
+    </form>
+  </dialog>
+
+  <dialog id="editVisitDialog">
+    <form id="editVisitForm">
+      <p class="eyebrow">EDIT VISIT</p>
+      <h2 id="editVisitTitle">Visit</h2>
+      <p id="editVisitContext" class="visit-context"></p>
+      <label for="editVisitScore">Score</label>
+      <input id="editVisitScore" type="number" min="0" max="180" step="1" inputmode="numeric" required>
+      <label for="editVisitDarts">Darts thrown</label>
+      <select id="editVisitDarts"><option value="1">1 dart</option><option value="2">2 darts</option><option value="3">3 darts</option></select>
+      <p id="editVisitMessage" class="message" role="alert"></p>
+      <div class="dialog-actions">
+        <button id="cancelVisitEditButton" type="button" class="secondary-button">Cancel</button>
+        <button type="submit" class="primary-button">Save visit</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
