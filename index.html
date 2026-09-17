@@ -46,7 +46,7 @@
         </fieldset>
         <div id="opponentFields" hidden>
           <label for="opponentName">Who are you playing against?</label>
-          <input id="opponentName" type="text" maxlength="30" inputmode="text" enterkeyhint="done" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="Tap here to enter opponent">
+          <input id="opponentName" type="text" maxlength="30" readonly aria-haspopup="dialog" placeholder="Tap here to enter opponent">
         </div>
         <button id="startMatchButton" class="primary-button" type="button">Start match</button>
         <p id="setupMessage" class="message" role="status"></p>
@@ -238,6 +238,27 @@
       <div class="dialog-actions">
         <button id="cancelVisitEditButton" type="button" class="secondary-button">Cancel</button>
         <button type="submit" class="primary-button">Save visit</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="opponentKeyboardDialog" class="name-keyboard-dialog">
+    <form method="dialog">
+      <p class="eyebrow">OPPONENT</p>
+      <h2>Enter opponent name</h2>
+      <output id="opponentKeyboardValue" class="name-keyboard-value" aria-live="polite">Tap letters below</output>
+      <div id="opponentKeyboardKeys" class="name-keyboard-keys" aria-label="Opponent name keyboard"></div>
+      <div class="name-keyboard-tools">
+        <button type="button" data-name-action="space">Space</button>
+        <button type="button" data-name-action="hyphen">-</button>
+        <button type="button" data-name-action="apostrophe">'</button>
+        <button type="button" data-name-action="backspace" aria-label="Backspace">⌫</button>
+        <button type="button" data-name-action="clear">Clear</button>
+      </div>
+      <p id="opponentKeyboardMessage" class="message" role="alert"></p>
+      <div class="dialog-actions">
+        <button id="cancelOpponentNameButton" type="button" class="secondary-button">Cancel</button>
+        <button id="saveOpponentNameButton" type="button" class="primary-button">Use this name</button>
       </div>
     </form>
   </dialog>

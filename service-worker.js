@@ -1,4 +1,4 @@
-const CACHE_NAME = "woodman-c-darts-v11";
+const CACHE_NAME = "woodman-c-darts-v13";
 const APP_SHELL = ["./", "./index.html", "./style.css", "./app.js", "./manifest.json"];
 
 self.addEventListener("install", (event) => {

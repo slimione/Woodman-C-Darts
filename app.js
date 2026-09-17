@@ -19,6 +19,7 @@ let selectedMatchId = null;
 let selectedProfileId = null;
 let detailBackView = "history";
 let selectedVisitIndex = null;
+let opponentNameDraft = "";
 
 if (!Array.isArray(data.profiles)) data.profiles = [];
 if (!Array.isArray(data.history)) data.history = [];
@@ -60,6 +61,7 @@ const checkoutDialog = $("checkoutDialog");
 const legEndDialog = $("legEndDialog");
 const resultDialog = $("resultDialog");
 const editVisitDialog = $("editVisitDialog");
+const opponentKeyboardDialog = $("opponentKeyboardDialog");
 
 function loadJSON(key, fallback) {
   try {
@@ -168,6 +170,47 @@ function updateStartAvailability() {
   $("opponentFields").hidden = mode !== "opponent";
   $("startMatchButton").textContent = mode === "practice" ? "Start practice" : "Start match";
   $("startMatchButton").disabled = !data.profiles.length || !mode || (mode === "opponent" && !$("opponentName").value.trim());
+}
+
+function renderOpponentNameDraft() {
+  $("opponentKeyboardValue").textContent = opponentNameDraft || "Tap letters below";
+  $("opponentKeyboardValue").classList.toggle("empty", !opponentNameDraft);
+  $("saveOpponentNameButton").disabled = !opponentNameDraft.trim();
+}
+
+function appendOpponentNameLetter(letter) {
+  if (opponentNameDraft.length >= 30) return;
+  const startsWord = !opponentNameDraft || /[\s'-]$/.test(opponentNameDraft);
+  opponentNameDraft += startsWord ? letter.toUpperCase() : letter.toLowerCase();
+  renderOpponentNameDraft();
+}
+
+function applyOpponentNameAction(action) {
+  if (action === "backspace") opponentNameDraft = opponentNameDraft.slice(0, -1);
+  if (action === "clear") opponentNameDraft = "";
+  if (action === "space" && opponentNameDraft && !opponentNameDraft.endsWith(" ") && opponentNameDraft.length < 30) opponentNameDraft += " ";
+  if (action === "hyphen" && opponentNameDraft && opponentNameDraft.length < 30) opponentNameDraft += "-";
+  if (action === "apostrophe" && opponentNameDraft && opponentNameDraft.length < 30) opponentNameDraft += "'";
+  renderOpponentNameDraft();
+}
+
+function openOpponentKeyboard() {
+  if (selectedMode() !== "opponent") return;
+  opponentNameDraft = $("opponentName").value;
+  $("opponentKeyboardMessage").textContent = "";
+  renderOpponentNameDraft();
+  opponentKeyboardDialog.showModal();
+}
+
+function saveOpponentName() {
+  const name = opponentNameDraft.trim();
+  if (!name) {
+    $("opponentKeyboardMessage").textContent = "Enter an opponent name.";
+    return;
+  }
+  $("opponentName").value = name;
+  $("opponentName").dispatchEvent(new Event("input", { bubbles: true }));
+  opponentKeyboardDialog.close("save");
 }
 
 function renderSetup() {
@@ -766,6 +809,42 @@ function closeMenu() {
   $("menuBackdrop").hidden = true;
   $("menuButton").setAttribute("aria-expanded", "false");
 }
+
+[
+  "QWERTYUIOP",
+  "ASDFGHJKL",
+  "ZXCVBNM"
+].forEach((letters) => {
+  const row = document.createElement("div");
+  row.className = "name-keyboard-row";
+  row.style.setProperty("--key-count", letters.length);
+  letters.split("").forEach((letter) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = letter;
+    button.setAttribute("aria-label", letter);
+    button.addEventListener("click", () => appendOpponentNameLetter(letter));
+    row.appendChild(button);
+  });
+  $("opponentKeyboardKeys").appendChild(row);
+});
+
+document.querySelectorAll("[data-name-action]").forEach((button) => button.addEventListener("click", () => applyOpponentNameAction(button.dataset.nameAction)));
+$("opponentName").addEventListener("click", openOpponentKeyboard);
+$("opponentName").addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    openOpponentKeyboard();
+  }
+});
+$("cancelOpponentNameButton").addEventListener("click", () => opponentKeyboardDialog.close("cancel"));
+$("saveOpponentNameButton").addEventListener("click", saveOpponentName);
+opponentKeyboardDialog.addEventListener("keydown", (event) => {
+  if (/^[a-z]$/i.test(event.key)) { event.preventDefault(); appendOpponentNameLetter(event.key); }
+  else if (event.key === "Backspace") { event.preventDefault(); applyOpponentNameAction("backspace"); }
+  else if (event.key === " ") { event.preventDefault(); applyOpponentNameAction("space"); }
+  else if (event.key === "Enter") { event.preventDefault(); saveOpponentName(); }
+});
 
 document.querySelectorAll("[data-key]").forEach((button) => button.addEventListener("click", () => enterKey(button.dataset.key)));
 $("clearButton").addEventListener("click", () => { entry = ""; renderMatch(); });
