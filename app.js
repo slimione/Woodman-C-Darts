@@ -815,7 +815,6 @@ $("historyPlayerFilter").addEventListener("change", renderHistory);
 document.querySelectorAll('input[name="matchMode"]').forEach((input) => input.addEventListener("change", () => {
   showSetupMessage("");
   updateStartAvailability();
-  if (input.value === "opponent" && input.checked) $("opponentName").focus();
 }));
 $("opponentName").addEventListener("input", updateStartAvailability);
 $("editMode").addEventListener("change", updateEditMode);
