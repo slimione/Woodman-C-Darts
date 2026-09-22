@@ -657,6 +657,7 @@ function renderMatch() {
   const activeStats = activePlayer === 2 ? match.stats2 : match.stats;
   const totals = getTotals(activePlayer);
   $("playerName").textContent = twoPlayer ? `${match.playerName} v ${match.player2Name}` : match.playerName;
+  $("activePlayerName").textContent = activeName;
   $("legLabel").textContent = twoPlayer
     ? `${activeName}'s turn · Leg ${match.legNumber} · First to ${match.legsToWin || 2}`
     : match.mode === "practice" ? `Solo practice · Leg ${match.legNumber} · Best of ${match.bestOf || 3}` : `v ${match.opponentName || "Opponent"} · Leg ${match.legNumber} · First to ${match.legsToWin || 2}`;

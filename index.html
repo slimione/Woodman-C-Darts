@@ -149,9 +149,13 @@
 
     <section id="gameView" class="view" aria-label="Current match">
       <div class="match-strip">
-        <div>
+        <div class="match-summary">
           <span id="playerName" class="player-name"></span>
           <span id="legLabel" class="muted"></span>
+        </div>
+        <div class="active-player-banner" aria-live="polite" aria-atomic="true">
+          <span>NOW THROWING</span>
+          <strong id="activePlayerName"></strong>
         </div>
         <div class="legs-score"><span id="playerLegs">0</span><small>LEGS</small><span id="opponentLegs">0</span></div>
       </div>
