@@ -39,10 +39,14 @@ if ((Number(data.rosterSeedVersion) || 0) < DEFAULT_ROSTER_VERSION) {
 }
 if (match) {
   match.stats = { ...blankStats(), ...(match.stats || {}) };
+  match.stats2 = { ...blankStats(), ...(match.stats2 || {}) };
   match.visits = Array.isArray(match.visits) ? match.visits : [];
   match.undo = Array.isArray(match.undo) ? match.undo : [];
   match.opponentName = match.opponentName || "Opponent";
   match.mode = match.mode || "opponent";
+  match.practiceType = match.practiceType || "solo";
+  match.currentTurn = match.currentTurn || 1;
+  match.remaining2 = Number.isFinite(match.remaining2) ? match.remaining2 : 501;
 }
 
 const $ = (id) => document.getElementById(id);
@@ -116,13 +120,28 @@ function getRecordStats(item) {
   return { points, darts, visits, average, highestVisit };
 }
 
+function isTwoPlayerPractice(item) {
+  return item.mode === "practice" && item.practiceType === "two-player" && item.player2Name;
+}
+
+function getRecordStatsForPlayer(item, playerNumber) {
+  if (playerNumber === 2) {
+    const visits = (item.scoreVisits || []).filter((visit) => Number(visit.player) === 2);
+    const points = Number.isFinite(item.player2Points) ? item.player2Points : visits.reduce((sum, visit) => sum + (Number(visit.score) || 0), 0);
+    const darts = Number.isFinite(item.player2Darts) ? item.player2Darts : visits.reduce((sum, visit) => sum + (Number(visit.darts) || 0), 0);
+    return { points, darts, visits: Number.isFinite(item.player2Visits) ? item.player2Visits : visits.length, average: Number.isFinite(item.player2Average) ? item.player2Average : (darts ? (points / darts) * 3 : 0), highestVisit: Number.isFinite(item.player2HighestVisit) ? item.player2HighestVisit : (visits.length ? Math.max(...visits.map((visit) => Number(visit.score) || 0)) : 0) };
+  }
+  return getRecordStats(item);
+}
+
 function historyItemHTML(item) {
   const totals = getRecordStats(item);
   const isPractice = item.mode === "practice";
+  const twoPlayer = isTwoPlayerPractice(item);
   const won = item.playerLegs > item.opponentLegs;
   return `<button class="history-item" type="button" data-match-id="${escapeHTML(item.id)}">
-    <div><strong>${escapeHTML(item.playerName)}</strong><span>${isPractice ? "Practice" : `v ${escapeHTML(item.opponentName || "Opponent")}`} · Avg ${totals.average.toFixed(2)}</span></div>
-    <div class="history-result">${isPractice ? `${totals.visits} visits` : `${item.playerLegs}–${item.opponentLegs}`}<span>${isPractice ? "PRACTICE" : won ? "WIN" : "LOSS"}</span></div>
+    <div><strong>${escapeHTML(twoPlayer ? `${item.playerName} v ${item.player2Name}` : item.playerName)}</strong><span>${twoPlayer ? `Two-player practice · ${totals.average.toFixed(2)} / ${getRecordStatsForPlayer(item, 2).average.toFixed(2)} avg` : `${isPractice ? "Practice" : `v ${escapeHTML(item.opponentName || "Opponent")}`} · Avg ${totals.average.toFixed(2)}`}</span></div>
+    <div class="history-result">${twoPlayer ? `${item.playerLegs}–${item.opponentLegs}` : isPractice ? `${totals.visits} visits` : `${item.playerLegs}–${item.opponentLegs}`}<span>${isPractice ? "PRACTICE" : won ? "WIN" : "LOSS"}</span></div>
   </button>`;
 }
 
@@ -142,7 +161,7 @@ function resultCategoryGroupsHTML(records) {
   records.forEach((item) => {
     const date = new Date(item.finishedAt);
     const dayKey = Number.isNaN(date.getTime()) ? "unknown" : `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-    const opponent = item.mode === "practice" ? "Practice" : (item.opponentName || "Opponent");
+    const opponent = isTwoPlayerPractice(item) ? `${item.playerName} v ${item.player2Name}` : item.mode === "practice" ? "Practice" : (item.opponentName || "Opponent");
     const key = `${opponent.trim().toLowerCase()}|${dayKey}`;
     if (!groups.has(key)) groups.set(key, { opponent, date: item.finishedAt, items: [] });
     groups.get(key).items.push(item);
@@ -165,11 +184,18 @@ function selectedMode() {
   return document.querySelector('input[name="matchMode"]:checked')?.value || "";
 }
 
+function selectedPracticeType() {
+  return document.querySelector('input[name="practiceType"]:checked')?.value || "solo";
+}
+
 function updateStartAvailability() {
   const mode = selectedMode();
   $("opponentFields").hidden = mode !== "opponent";
+  $("practiceFields").hidden = mode !== "practice";
+  $("secondPlayerFields").hidden = mode !== "practice" || selectedPracticeType() !== "two-player";
   $("startMatchButton").textContent = mode === "practice" ? "Start practice" : "Start match";
-  $("startMatchButton").disabled = !data.profiles.length || !mode || (mode === "opponent" && !$("opponentName").value.trim());
+  const invalidSecondPlayer = mode === "practice" && selectedPracticeType() === "two-player" && (!$("secondPlayerSelect").value || $("secondPlayerSelect").value === playerSelect.value);
+  $("startMatchButton").disabled = !data.profiles.length || !mode || (mode === "opponent" && !$("opponentName").value.trim()) || invalidSecondPlayer;
 }
 
 function renderOpponentNameDraft() {
@@ -215,10 +241,17 @@ function saveOpponentName() {
 
 function renderSetup() {
   const current = playerSelect.value;
+  const currentSecond = $("secondPlayerSelect").value;
   playerSelect.innerHTML = data.profiles.length
     ? data.profiles.map((p) => `<option value="${p.id}">${escapeHTML(p.name)}</option>`).join("")
     : '<option value="">Add a player first</option>';
   if (data.profiles.some((p) => p.id === current)) playerSelect.value = current;
+  $("secondPlayerSelect").innerHTML = data.profiles.map((p) => `<option value="${p.id}">${escapeHTML(p.name)}</option>`).join("");
+  if (data.profiles.some((p) => p.id === currentSecond)) $("secondPlayerSelect").value = currentSecond;
+  if ($("secondPlayerSelect").value === playerSelect.value) {
+    const alternative = data.profiles.find((p) => p.id !== playerSelect.value);
+    $("secondPlayerSelect").value = alternative?.id || "";
+  }
   $("deletePlayerButton").disabled = !data.profiles.length;
   $("playerStatsButton").disabled = !data.profiles.length;
   updateStartAvailability();
@@ -257,7 +290,7 @@ function renderHistory() {
   filter.innerHTML = '<option value="">All players</option>' + data.profiles
     .map((profile) => `<option value="${profile.id}">${escapeHTML(profile.name)}</option>`).join("");
   if (data.profiles.some((profile) => profile.id === current)) filter.value = current;
-  const records = newestFirst(data.history.filter((item) => !filter.value || item.profileId === filter.value));
+  const records = newestFirst(data.history.filter((item) => !filter.value || item.profileId === filter.value || item.player2ProfileId === filter.value));
   $("allHistoryList").innerHTML = records.length
     ? resultCategoryGroupsHTML(records)
     : '<p class="empty-state">No completed matches for this player yet.</p>';
@@ -274,11 +307,12 @@ function valueHTML(label, value) {
   return `<div class="metric"><span>${label}</span><strong>${value}</strong></div>`;
 }
 
-function deriveLegs(item) {
-  if (Array.isArray(item.legs) && item.legs.length) return item.legs;
+function deriveLegs(item, playerNumber = 1) {
+  if (playerNumber === 2 && Array.isArray(item.player2Legs) && item.player2Legs.length) return item.player2Legs;
+  if (playerNumber === 1 && Array.isArray(item.legs) && item.legs.length) return item.legs;
   if (!Array.isArray(item.scoreVisits) || !item.scoreVisits.length) return [];
   const grouped = new Map();
-  item.scoreVisits.forEach((visit) => {
+  item.scoreVisits.filter((visit) => !isTwoPlayerPractice(item) || Number(visit.player || 1) === playerNumber).forEach((visit) => {
     const legNumber = Number(visit.leg) || 1;
     if (!grouped.has(legNumber)) grouped.set(legNumber, []);
     grouped.get(legNumber).push(visit);
@@ -296,12 +330,14 @@ function visitTimeline(item) {
   const visitNumberByLeg = new Map();
   return item.scoreVisits.map((visit, index) => {
     const leg = Number(visit.leg) || 1;
-    const before = remainingByLeg.has(leg) ? remainingByLeg.get(leg) : 501;
+    const player = Number(visit.player) || 1;
+    const key = `${leg}-${player}`;
+    const before = remainingByLeg.has(key) ? remainingByLeg.get(key) : 501;
     const remaining = before - (Number(visit.score) || 0);
-    const number = (visitNumberByLeg.get(leg) || 0) + 1;
-    remainingByLeg.set(leg, remaining);
-    visitNumberByLeg.set(leg, number);
-    return { ...visit, index, leg, number, before, remaining };
+    const number = (visitNumberByLeg.get(key) || 0) + 1;
+    remainingByLeg.set(key, remaining);
+    visitNumberByLeg.set(key, number);
+    return { ...visit, index, leg, player, number, before, remaining };
   });
 }
 
@@ -315,7 +351,7 @@ function visitsHTML(item) {
   });
   return [...groups.entries()].map(([leg, visits]) => `<section class='visit-leg'><h4>Leg ${leg}</h4><div class='visit-list'>${visits.map((visit) => `
     <button class='visit-row' type='button' data-visit-index='${visit.index}'>
-      <span><small>Visit ${visit.number}</small><strong>${visit.score}</strong></span>
+      <span><small>${isTwoPlayerPractice(item) ? `${escapeHTML(visit.player === 2 ? item.player2Name : item.playerName)} · ` : ""}Visit ${visit.number}</small><strong>${visit.score}</strong></span>
       <span><small>${visit.darts} ${visit.darts === 1 ? 'dart' : 'darts'}${visit.checkout ? ' · checkout' : ''}</small><strong class='${visit.remaining < 0 ? 'invalid-remaining' : ''}'>${visit.remaining} left</strong></span>
     </button>`).join('')}</div></section>`).join('');
 }
@@ -329,7 +365,7 @@ function openVisitEditor(index) {
   const visit = item ? visitTimeline(item).find((entry) => entry.index === index) : null;
   if (!visit) return;
   selectedVisitIndex = index;
-  $("editVisitTitle").textContent = `Leg ${visit.leg} · Visit ${visit.number}`;
+  $("editVisitTitle").textContent = `${isTwoPlayerPractice(item) ? `${visit.player === 2 ? item.player2Name : item.playerName} · ` : ""}Leg ${visit.leg} · Visit ${visit.number}`;
   $("editVisitContext").textContent = `${visit.before} before · ${visit.remaining} left`;
   $("editVisitScore").value = visit.score;
   $("editVisitDarts").value = String(visit.darts || 3);
@@ -339,36 +375,40 @@ function openVisitEditor(index) {
 }
 
 function recalculateFromVisits(item) {
-  const visits = item.scoreVisits;
-  const points = visits.reduce((sum, visit) => sum + Number(visit.score), 0);
-  const darts = visits.reduce((sum, visit) => sum + Number(visit.darts), 0);
-  item.points = points;
-  item.darts = darts;
-  item.visits = visits.length;
-  item.average = darts ? (points / darts) * 3 : 0;
-  item.highestVisit = visits.length ? Math.max(...visits.map((visit) => Number(visit.score))) : 0;
-  item.stats = visits.reduce((stats, visit) => {
-    const band = classify(Number(visit.score));
-    if (band) stats[band] += 1;
-    return stats;
-  }, blankStats());
-  const previousLegs = new Map((item.legs || []).map((leg) => [Number(leg.number), leg]));
-  const grouped = new Map();
-  visits.forEach((visit) => {
-    const leg = Number(visit.leg) || 1;
-    if (!grouped.has(leg)) grouped.set(leg, []);
-    grouped.get(leg).push(visit);
-  });
-  item.legs = [...grouped.entries()].map(([number, legVisits]) => {
-    const legPoints = legVisits.reduce((sum, visit) => sum + Number(visit.score), 0);
-    const legDarts = legVisits.reduce((sum, visit) => sum + Number(visit.darts), 0);
-    return {
-      number, points: legPoints, darts: legDarts, visits: legVisits.length,
-      average: legDarts ? (legPoints / legDarts) * 3 : 0,
-      highestVisit: Math.max(...legVisits.map((visit) => Number(visit.score))),
-      won: previousLegs.get(number)?.won ?? (legVisits.some((visit) => visit.checkout) ? true : null)
-    };
-  });
+  const allVisits = item.scoreVisits;
+  function recalculatePlayer(playerNumber) {
+    const visits = allVisits.filter((visit) => !isTwoPlayerPractice(item) || Number(visit.player || 1) === playerNumber);
+    const points = visits.reduce((sum, visit) => sum + Number(visit.score), 0);
+    const darts = visits.reduce((sum, visit) => sum + Number(visit.darts), 0);
+    const totals = { points, darts, visits: visits.length, average: darts ? (points / darts) * 3 : 0, highestVisit: visits.length ? Math.max(...visits.map((visit) => Number(visit.score))) : 0 };
+    const stats = visits.reduce((result, visit) => {
+      const band = classify(Number(visit.score));
+      if (band) result[band] += 1;
+      return result;
+    }, blankStats());
+    const priorLegs = playerNumber === 2 ? item.player2Legs : item.legs;
+    const previousLegs = new Map((priorLegs || []).map((leg) => [Number(leg.number), leg]));
+    const grouped = new Map();
+    visits.forEach((visit) => {
+      const leg = Number(visit.leg) || 1;
+      if (!grouped.has(leg)) grouped.set(leg, []);
+      grouped.get(leg).push(visit);
+    });
+    const legs = [...grouped.entries()].map(([number, legVisits]) => {
+      const legPoints = legVisits.reduce((sum, visit) => sum + Number(visit.score), 0);
+      const legDarts = legVisits.reduce((sum, visit) => sum + Number(visit.darts), 0);
+      return {
+        number, points: legPoints, darts: legDarts, visits: legVisits.length,
+        average: legDarts ? (legPoints / legDarts) * 3 : 0,
+        highestVisit: Math.max(...legVisits.map((visit) => Number(visit.score))),
+        won: previousLegs.get(number)?.won ?? (legVisits.some((visit) => visit.checkout) ? true : null)
+      };
+    });
+    if (playerNumber === 1) Object.assign(item, totals, { stats, legs });
+    else Object.assign(item, { player2Points: totals.points, player2Darts: totals.darts, player2Visits: totals.visits, player2Average: totals.average, player2HighestVisit: totals.highestVisit, stats2: stats, player2Legs: legs });
+  }
+  recalculatePlayer(1);
+  if (isTwoPlayerPractice(item)) recalculatePlayer(2);
   item.editedAt = new Date().toISOString();
 }
 
@@ -387,8 +427,9 @@ function saveVisitEdit(event) {
   }
   const candidateVisits = item.scoreVisits.map((visit, index) => index === selectedVisitIndex ? { ...visit, score, darts } : visit);
   const editedLeg = Number(candidateVisits[selectedVisitIndex].leg) || 1;
+  const editedPlayer = Number(candidateVisits[selectedVisitIndex].player) || 1;
   let remaining = 501;
-  for (const visit of candidateVisits.filter((entry) => (Number(entry.leg) || 1) === editedLeg)) {
+  for (const visit of candidateVisits.filter((entry) => (Number(entry.leg) || 1) === editedLeg && (!isTwoPlayerPractice(item) || (Number(entry.player) || 1) === editedPlayer))) {
     if (Number(visit.score) > remaining) {
       $("editVisitMessage").textContent = "That change would make a later visit go below zero.";
       return;
@@ -408,18 +449,22 @@ function renderMatchDetail() {
   if (!item) return setView("history");
   const totals = getRecordStats(item);
   const stats = { ...blankStats(), ...(item.stats || {}) };
-  const legs = deriveLegs(item);
+  const legs = deriveLegs(item, 1);
   const isPractice = item.mode === "practice";
+  const twoPlayer = isTwoPlayerPractice(item);
+  const totals2 = twoPlayer ? getRecordStatsForPlayer(item, 2) : null;
+  const stats2 = twoPlayer ? { ...blankStats(), ...(item.stats2 || {}) } : null;
+  const legs2 = twoPlayer ? deriveLegs(item, 2) : [];
   const result = isPractice ? "Practice" : item.playerLegs > item.opponentLegs ? "Win" : "Loss";
-  $("detailTitle").textContent = isPractice ? `${item.playerName} practice` : `${item.playerName} v ${item.opponentName || "Opponent"}`;
+  $("detailTitle").textContent = twoPlayer ? `${item.playerName} v ${item.player2Name}` : isPractice ? `${item.playerName} practice` : `${item.playerName} v ${item.opponentName || "Opponent"}`;
   $("detailView").querySelector("[data-back]").dataset.back = detailBackView;
   $("matchDetail").innerHTML = `
     <section class="card detail-hero">
-      <div><span class="result-badge ${result.toLowerCase()}">${result}</span><h3>${isPractice ? `${escapeHTML(item.playerName)} practice session` : `${escapeHTML(item.playerName)} <strong>${item.playerLegs}–${item.opponentLegs}</strong> ${escapeHTML(item.opponentName || "Opponent")}`}</h3><p>${formatDate(item.finishedAt, true)}</p></div>
-      <div class="average-callout"><span>Match average</span><strong>${totals.average.toFixed(2)}</strong></div>
+      <div><span class="result-badge ${result.toLowerCase()}">${result}</span><h3>${twoPlayer ? `${escapeHTML(item.playerName)} <strong>${item.playerLegs}–${item.opponentLegs}</strong> ${escapeHTML(item.player2Name)}` : isPractice ? `${escapeHTML(item.playerName)} practice session` : `${escapeHTML(item.playerName)} <strong>${item.playerLegs}–${item.opponentLegs}</strong> ${escapeHTML(item.opponentName || "Opponent")}`}</h3><p>${formatDate(item.finishedAt, true)} · Best of ${item.bestOf || 3}</p></div>
+      <div class="average-callout"><span>${twoPlayer ? `${escapeHTML(item.playerName)} average` : "Match average"}</span><strong>${totals.average.toFixed(2)}</strong></div>
     </section>
     <div class="result-management-actions">
-      <button id="editPastMatchButton" class="secondary-button" type="button">Edit this result</button>
+      ${twoPlayer ? '<span class="secondary-button edit-visits-note">Edit visits below</span>' : '<button id="editPastMatchButton" class="secondary-button" type="button">Edit this result</button>'}
       <button id="deletePastMatchButton" class="secondary-button danger-text" type="button">Delete result</button>
     </div>
     <section class="detail-grid">
@@ -428,14 +473,18 @@ function renderMatchDetail() {
       ${valueHTML("Highest visit", totals.highestVisit == null ? "Not recorded" : totals.highestVisit)}
       ${valueHTML("Scoring visits", totals.visits)}
     </section>
+    ${twoPlayer ? `<section class="player-stat-block card detail-section"><h3>${escapeHTML(item.player2Name)}</h3><div class="detail-grid">
+      ${valueHTML("Average", totals2.average.toFixed(2))}${valueHTML("Darts thrown", totals2.darts)}${valueHTML("Total scored", totals2.points)}${valueHTML("Highest visit", totals2.highestVisit)}
+    </div><h3>Visit bands</h3><div class="band-grid">${valueHTML("40–74", stats2.band40)}${valueHTML("75–99", stats2.band75)}${valueHTML("100–139", stats2.band100)}${valueHTML("140–179", stats2.band140)}${valueHTML("180", stats2.band180)}</div></section>` : ""}
     <section class="card detail-section visit-section"><div class="visit-heading"><h3>Visits</h3><p>Tap a visit to change it. Later remaining scores update automatically.</p></div>${visitsHTML(item)}</section>
-    <section class="card detail-section"><h3>Visit bands</h3><div class="band-grid">
+    <section class="card detail-section"><h3>${twoPlayer ? `${escapeHTML(item.playerName)} visit bands` : "Visit bands"}</h3><div class="band-grid">
       ${valueHTML("40–74", stats.band40)}${valueHTML("75–99", stats.band75)}${valueHTML("100–139", stats.band100)}${valueHTML("140–179", stats.band140)}${valueHTML("180", stats.band180)}
     </div></section>
-    <section class="card detail-section"><h3>Leg breakdown</h3>
+    <section class="card detail-section"><h3>${twoPlayer ? `${escapeHTML(item.playerName)} leg breakdown` : "Leg breakdown"}</h3>
       ${legs.length ? `<div class="leg-list">${legs.map((leg) => `<div class="leg-row"><div><strong>Leg ${leg.number}</strong><span>${leg.won === true ? "Won" : leg.won === false ? "Lost" : "Result not recorded"}</span></div><div><strong>${Number(leg.average || 0).toFixed(2)} avg</strong><span>${leg.points} scored · ${leg.darts} darts · High ${leg.highestVisit ?? "—"}</span></div></div>`).join("")}</div>` : '<p class="empty-state compact">Per-leg data was not stored for this older match.</p>'}
+      ${twoPlayer && legs2.length ? `<h3 class="second-leg-heading">${escapeHTML(item.player2Name)}</h3><div class="leg-list">${legs2.map((leg) => `<div class="leg-row"><div><strong>Leg ${leg.number}</strong><span>${leg.won === true ? "Won" : leg.won === false ? "Lost" : "Not completed"}</span></div><div><strong>${Number(leg.average || 0).toFixed(2)} avg</strong><span>${leg.points} scored · ${leg.darts} darts · High ${leg.highestVisit ?? "—"}</span></div></div>`).join("")}</div>` : ""}
     </section>`;
-  $("editPastMatchButton").addEventListener("click", openEditMatch);
+  if (!twoPlayer) $("editPastMatchButton").addEventListener("click", openEditMatch);
   $("deletePastMatchButton").addEventListener("click", deleteMatchResult);
   attachVisitListeners();
 }
@@ -546,15 +595,16 @@ function saveEditedMatch(event) {
 function renderProfileStats() {
   const profile = data.profiles.find((item) => item.id === selectedProfileId);
   if (!profile) return setView("setup");
-  const records = data.history.filter((item) => item.profileId === profile.id);
-  const wins = records.filter((item) => item.playerLegs > item.opponentLegs).length;
-  const totalPoints = records.reduce((sum, item) => sum + getRecordStats(item).points, 0);
-  const knownDarts = records.map(getRecordStats).filter((item) => item.darts != null);
+  const records = data.history.filter((item) => item.profileId === profile.id || item.player2ProfileId === profile.id);
+  const playerNumberFor = (item) => item.player2ProfileId === profile.id ? 2 : 1;
+  const wins = records.filter((item) => playerNumberFor(item) === 2 ? item.opponentLegs > item.playerLegs : item.playerLegs > item.opponentLegs).length;
+  const totalPoints = records.reduce((sum, item) => sum + getRecordStatsForPlayer(item, playerNumberFor(item)).points, 0);
+  const knownDarts = records.map((item) => getRecordStatsForPlayer(item, playerNumberFor(item))).filter((item) => item.darts != null);
   const totalDarts = knownDarts.reduce((sum, item) => sum + item.darts, 0);
   const aggregateAverage = totalDarts ? (knownDarts.reduce((sum, item) => sum + item.points, 0) / totalDarts) * 3 : 0;
-  const highest = records.map((item) => getRecordStats(item).highestVisit).filter((value) => value != null);
+  const highest = records.map((item) => getRecordStatsForPlayer(item, playerNumberFor(item)).highestVisit).filter((value) => value != null);
   const bands = records.reduce((totals, item) => {
-    const stats = item.stats || {};
+    const stats = playerNumberFor(item) === 2 ? (item.stats2 || {}) : (item.stats || {});
     Object.keys(totals).forEach((key) => { totals[key] += Number(stats[key]) || 0; });
     return totals;
   }, blankStats());
@@ -575,20 +625,25 @@ function startMatch() {
   if (!mode) return showSetupMessage("Choose opponent or practice.");
   const opponentName = $("opponentName").value.trim();
   if (mode === "opponent" && !opponentName) return showSetupMessage("Enter who you are playing against.");
+  const practiceType = mode === "practice" ? selectedPracticeType() : "solo";
+  const profile2 = practiceType === "two-player" ? data.profiles.find((p) => p.id === $("secondPlayerSelect").value) : null;
+  if (practiceType === "two-player" && (!profile2 || profile2.id === profile.id)) return showSetupMessage("Choose a different second player.");
   if (match && !match.complete && !confirm("Replace the unfinished match?")) return;
   match = {
     id: makeId(), profileId: profile.id, playerName: profile.name,
-    mode, opponentName: mode === "practice" ? "Practice" : opponentName,
+    mode, practiceType, opponentName: mode === "practice" ? "Practice" : opponentName,
+    player2ProfileId: profile2?.id || null, player2Name: profile2?.name || null,
+    bestOf: Number($("bestOfSelect").value) || 3, legsToWin: Math.floor((Number($("bestOfSelect").value) || 3) / 2) + 1,
     startedAt: new Date().toISOString(), remaining: 501, playerLegs: 0, opponentLegs: 0,
-    legNumber: 1, visits: [], stats: blankStats(), undo: [], complete: false
+    remaining2: 501, currentTurn: 1, legNumber: 1, visits: [], stats: blankStats(), stats2: blankStats(), undo: [], complete: false
   };
   saveMatch();
   entry = "";
   setView("game");
 }
 
-function getTotals() {
-  const scoringVisits = match ? match.visits.filter((v) => v.type === "score") : [];
+function getTotals(playerNumber = 1) {
+  const scoringVisits = match ? match.visits.filter((v) => v.type === "score" && (!isTwoPlayerPractice(match) || Number(v.player || 1) === playerNumber)) : [];
   const points = scoringVisits.reduce((sum, v) => sum + v.score, 0);
   const darts = scoringVisits.reduce((sum, v) => sum + v.darts, 0);
   return { visits: scoringVisits.length, points, darts, average: darts ? (points / darts) * 3 : 0 };
@@ -596,22 +651,28 @@ function getTotals() {
 
 function renderMatch() {
   if (!match) return setView("setup");
-  const totals = getTotals();
-  $("playerName").textContent = match.playerName;
-  $("legLabel").textContent = match.mode === "practice"
-    ? `Practice · Leg ${match.legNumber}`
-    : `v ${match.opponentName || "Opponent"} · Leg ${match.legNumber} · First to 2`;
+  const twoPlayer = isTwoPlayerPractice(match);
+  const activePlayer = twoPlayer ? match.currentTurn : 1;
+  const activeName = activePlayer === 2 ? match.player2Name : match.playerName;
+  const activeStats = activePlayer === 2 ? match.stats2 : match.stats;
+  const totals = getTotals(activePlayer);
+  $("playerName").textContent = twoPlayer ? `${match.playerName} v ${match.player2Name}` : match.playerName;
+  $("legLabel").textContent = twoPlayer
+    ? `${activeName}'s turn · Leg ${match.legNumber} · First to ${match.legsToWin || 2}`
+    : match.mode === "practice" ? `Solo practice · Leg ${match.legNumber} · Best of ${match.bestOf || 3}` : `v ${match.opponentName || "Opponent"} · Leg ${match.legNumber} · First to ${match.legsToWin || 2}`;
   $("playerLegs").textContent = match.playerLegs;
   $("opponentLegs").textContent = match.opponentLegs;
-  $("remainingScore").textContent = match.remaining;
+  $("remainingScore").textContent = activePlayer === 2 ? match.remaining2 : match.remaining;
+  $("scoreRemainingLabel").textContent = `${activeName.toUpperCase()} · SCORE REMAINING`;
+  $("currentStatsLabel").textContent = `${activeName} statistics`;
   $("averageValue").textContent = totals.average.toFixed(2);
   $("visitCount").textContent = totals.visits;
   $("scoreEntry").textContent = entry || "0";
-  $("stat40").textContent = match.stats.band40;
-  $("stat75").textContent = match.stats.band75;
-  $("stat100").textContent = match.stats.band100;
-  $("stat140").textContent = match.stats.band140;
-  $("stat180").textContent = match.stats.band180;
+  $("stat40").textContent = activeStats.band40;
+  $("stat75").textContent = activeStats.band75;
+  $("stat100").textContent = activeStats.band100;
+  $("stat140").textContent = activeStats.band140;
+  $("stat180").textContent = activeStats.band180;
   $("undoButton").disabled = !match.undo.length || match.complete;
   $("submitScoreButton").disabled = match.complete;
   $("opponentWonButton").disabled = match.complete;
@@ -637,20 +698,22 @@ function classify(score) {
 
 function snapshot() {
   match.undo.push({
-    remaining: match.remaining, playerLegs: match.playerLegs, opponentLegs: match.opponentLegs,
-    legNumber: match.legNumber, visits: match.visits.map((visit) => ({ ...visit })), stats: { ...match.stats }, complete: match.complete
+    remaining: match.remaining, remaining2: match.remaining2, currentTurn: match.currentTurn,
+    playerLegs: match.playerLegs, opponentLegs: match.opponentLegs,
+    legNumber: match.legNumber, visits: match.visits.map((visit) => ({ ...visit })), stats: { ...match.stats }, stats2: { ...match.stats2 }, complete: match.complete
   });
   if (match.undo.length > 30) match.undo.shift();
 }
 
 function submitScore() {
   const score = Number(entry);
+  const activeRemaining = isTwoPlayerPractice(match) && match.currentTurn === 2 ? match.remaining2 : match.remaining;
   showGameMessage("");
   if (!entry) return showGameMessage("Enter a score first.");
   if (score < 0 || score > 180) return showGameMessage("Enter a score from 0 to 180.");
-  if (score > match.remaining) return showGameMessage("Bust — score is higher than the remaining total.");
-  if (match.remaining - score === 1) return showGameMessage("Bust — you cannot leave 1.");
-  if (score === match.remaining) {
+  if (score > activeRemaining) return showGameMessage("Bust — score is higher than the remaining total.");
+  if (activeRemaining - score === 1) return showGameMessage("Bust — you cannot leave 1.");
+  if (score === activeRemaining) {
     pendingCheckout = score;
     checkoutDialog.showModal();
     return;
@@ -660,16 +723,21 @@ function submitScore() {
 
 function commitVisit(score, darts, checkout) {
   snapshot();
+  const twoPlayer = isTwoPlayerPractice(match);
+  const player = twoPlayer ? match.currentTurn : 1;
+  const activeStats = player === 2 ? match.stats2 : match.stats;
   const band = classify(score);
-  if (band) match.stats[band] += 1;
-  match.visits.push({ type: "score", score, darts, checkout, leg: match.legNumber, at: new Date().toISOString() });
-  match.remaining -= score;
+  if (band) activeStats[band] += 1;
+  match.visits.push({ type: "score", score, darts, checkout, player, leg: match.legNumber, at: new Date().toISOString() });
+  if (player === 2) match.remaining2 -= score;
+  else match.remaining -= score;
   entry = "";
   if (checkout) {
-    match.playerLegs += 1;
-    match.remaining = 0;
-    endLeg(match.playerName);
+    if (player === 2) { match.opponentLegs += 1; match.remaining2 = 0; }
+    else { match.playerLegs += 1; match.remaining = 0; }
+    endLeg(player === 2 ? match.player2Name : match.playerName);
   } else {
+    if (twoPlayer) match.currentTurn = player === 1 ? 2 : 1;
     saveMatch();
     renderMatch();
   }
@@ -692,7 +760,7 @@ function opponentWonLeg() {
 function endLeg(winner) {
   saveMatch();
   renderMatch();
-  const isComplete = match.playerLegs === 2 || match.opponentLegs === 2;
+  const isComplete = match.playerLegs === (match.legsToWin || 2) || match.opponentLegs === (match.legsToWin || 2);
   $("legEndTitle").textContent = `${winner} won leg ${match.legNumber}`;
   $("legEndSummary").textContent = isComplete ? `Final score: ${match.playerLegs}–${match.opponentLegs}` : `Match score: ${match.playerLegs}–${match.opponentLegs}`;
   $("nextLegButton").hidden = isComplete;
@@ -703,15 +771,17 @@ function endLeg(winner) {
 function nextLeg() {
   match.legNumber += 1;
   match.remaining = 501;
+  match.remaining2 = 501;
+  if (isTwoPlayerPractice(match)) match.currentTurn = match.legNumber % 2 === 0 ? 2 : 1;
   entry = "";
   saveMatch();
   renderMatch();
 }
 
-function buildLegBreakdown() {
+function buildLegBreakdown(playerNumber = 1) {
   return Array.from({ length: match.legNumber }, (_, index) => {
     const number = index + 1;
-    const visits = match.visits.filter((visit) => visit.type === "score" && visit.leg === number);
+    const visits = match.visits.filter((visit) => visit.type === "score" && visit.leg === number && (!isTwoPlayerPractice(match) || Number(visit.player || 1) === playerNumber));
     const points = visits.reduce((sum, visit) => sum + visit.score, 0);
     const darts = visits.reduce((sum, visit) => sum + visit.darts, 0);
     const playerWon = visits.some((visit) => visit.checkout);
@@ -720,29 +790,35 @@ function buildLegBreakdown() {
       number, points, darts, visits: visits.length,
       average: darts ? (points / darts) * 3 : 0,
       highestVisit: visits.length ? Math.max(...visits.map((visit) => visit.score)) : 0,
-      won: playerWon ? true : opponentWon ? false : null
+      won: playerWon ? true : isTwoPlayerPractice(match) ? (match.visits.some((visit) => visit.type === "score" && visit.leg === number && visit.checkout && Number(visit.player || 1) !== playerNumber) ? false : null) : opponentWon ? false : null
     };
   });
 }
 
 function finishMatch() {
   match.complete = true;
-  const totals = getTotals();
+  const totals = getTotals(1);
+  const totals2 = isTwoPlayerPractice(match) ? getTotals(2) : null;
   const scoreVisits = match.visits.filter((visit) => visit.type === "score").map((visit) => ({ ...visit }));
   const record = {
     id: match.id, profileId: match.profileId, playerName: match.playerName,
-    mode: match.mode || "opponent", opponentName: match.opponentName || "Opponent",
+    mode: match.mode || "opponent", practiceType: match.practiceType || "solo", opponentName: match.opponentName || "Opponent",
+    player2ProfileId: match.player2ProfileId || null, player2Name: match.player2Name || null,
+    bestOf: match.bestOf || 3,
     startedAt: match.startedAt, finishedAt: new Date().toISOString(), playerLegs: match.playerLegs,
     opponentLegs: match.opponentLegs, average: totals.average, visits: totals.visits,
     points: totals.points, darts: totals.darts,
-    highestVisit: scoreVisits.length ? Math.max(...scoreVisits.map((visit) => visit.score)) : 0,
-    stats: { ...match.stats }, scoreVisits, legs: buildLegBreakdown()
+    highestVisit: scoreVisits.filter((visit) => !isTwoPlayerPractice(match) || Number(visit.player || 1) === 1).length ? Math.max(...scoreVisits.filter((visit) => !isTwoPlayerPractice(match) || Number(visit.player || 1) === 1).map((visit) => visit.score)) : 0,
+    stats: { ...match.stats }, scoreVisits, legs: buildLegBreakdown(1),
+    player2Average: totals2?.average, player2Visits: totals2?.visits, player2Points: totals2?.points, player2Darts: totals2?.darts,
+    player2HighestVisit: totals2 ? (scoreVisits.filter((visit) => Number(visit.player) === 2).length ? Math.max(...scoreVisits.filter((visit) => Number(visit.player) === 2).map((visit) => visit.score)) : 0) : undefined,
+    stats2: totals2 ? { ...match.stats2 } : undefined, player2Legs: totals2 ? buildLegBreakdown(2) : undefined
   };
   if (!data.history.some((item) => item.id === record.id)) data.history.push(record);
   saveData();
   localStorage.removeItem(ACTIVE_KEY);
   $("resultTitle").textContent = match.mode === "practice" ? "Practice saved" : match.playerLegs > match.opponentLegs ? `${match.playerName} wins!` : `${match.opponentName || "Opponent"} wins`;
-  $("resultSummary").textContent = match.mode === "practice" ? `${totals.visits} visits · Practice average ${totals.average.toFixed(2)}` : `${match.playerLegs}–${match.opponentLegs} · Match average ${totals.average.toFixed(2)}`;
+  $("resultSummary").textContent = isTwoPlayerPractice(match) ? `${match.playerName} ${match.playerLegs}–${match.opponentLegs} ${match.player2Name} · averages ${totals.average.toFixed(2)} / ${totals2.average.toFixed(2)}` : match.mode === "practice" ? `${totals.visits} visits · Practice average ${totals.average.toFixed(2)}` : `${match.playerLegs}–${match.opponentLegs} · Match average ${totals.average.toFixed(2)}`;
   resultDialog.showModal();
 }
 
@@ -895,6 +971,18 @@ document.querySelectorAll('input[name="matchMode"]').forEach((input) => input.ad
   showSetupMessage("");
   updateStartAvailability();
 }));
+document.querySelectorAll('input[name="practiceType"]').forEach((input) => input.addEventListener("change", () => {
+  showSetupMessage("");
+  updateStartAvailability();
+}));
+playerSelect.addEventListener("change", () => {
+  if ($("secondPlayerSelect").value === playerSelect.value) {
+    const alternative = data.profiles.find((profile) => profile.id !== playerSelect.value);
+    $("secondPlayerSelect").value = alternative?.id || "";
+  }
+  updateStartAvailability();
+});
+$("secondPlayerSelect").addEventListener("change", updateStartAvailability);
 $("opponentName").addEventListener("input", updateStartAvailability);
 $("editMode").addEventListener("change", updateEditMode);
 $("editMatchForm").addEventListener("submit", saveEditedMatch);

@@ -41,13 +41,34 @@
           <legend>Who are you playing?</legend>
           <div class="mode-options">
             <label class="mode-option"><input type="radio" name="matchMode" value="opponent"><span><strong>Opponent</strong><small>Record a competitive result</small></span></label>
-            <label class="mode-option"><input type="radio" name="matchMode" value="practice"><span><strong>Practice</strong><small>Track a solo practice session</small></span></label>
+            <label class="mode-option"><input type="radio" name="matchMode" value="practice"><span><strong>Practice</strong><small>Play solo or score two players</small></span></label>
           </div>
         </fieldset>
         <div id="opponentFields" hidden>
           <label for="opponentName">Who are you playing against?</label>
           <input id="opponentName" type="text" maxlength="30" readonly aria-haspopup="dialog" placeholder="Tap here to enter opponent">
         </div>
+        <div id="practiceFields" class="practice-fields" hidden>
+          <fieldset class="match-mode-fieldset">
+            <legend>Practice type</legend>
+            <div class="mode-options">
+              <label class="mode-option"><input type="radio" name="practiceType" value="solo" checked><span><strong>Solo</strong><small>Score one player</small></span></label>
+              <label class="mode-option"><input type="radio" name="practiceType" value="two-player"><span><strong>Two players</strong><small>Take turns on one iPad</small></span></label>
+            </div>
+          </fieldset>
+          <div id="secondPlayerFields" hidden>
+            <label for="secondPlayerSelect">Second player</label>
+            <select id="secondPlayerSelect" aria-label="Choose second player"></select>
+          </div>
+        </div>
+        <label for="bestOfSelect">Number of legs</label>
+        <select id="bestOfSelect">
+          <option value="1">Single leg</option>
+          <option value="3" selected>Best of 3</option>
+          <option value="5">Best of 5</option>
+          <option value="7">Best of 7</option>
+          <option value="9">Best of 9</option>
+        </select>
         <button id="startMatchButton" class="primary-button" type="button">Start match</button>
         <p id="setupMessage" class="message" role="status"></p>
       </div>
@@ -136,7 +157,7 @@
       </div>
 
       <section class="score-card">
-        <p class="eyebrow">SCORE REMAINING</p>
+        <p id="scoreRemainingLabel" class="eyebrow">SCORE REMAINING</p>
         <output id="remainingScore" class="remaining">501</output>
         <div class="score-meta">
           <span>Match avg <strong id="averageValue">0.00</strong></span>
@@ -156,6 +177,7 @@
         <p id="gameMessage" class="message" role="alert"></p>
       </section>
 
+      <p id="currentStatsLabel" class="current-stats-label">Match statistics</p>
       <section class="stats-card" aria-label="Match statistics">
         <div><strong id="stat40">0</strong><span>40–74</span></div>
         <div><strong id="stat75">0</strong><span>75–99</span></div>
