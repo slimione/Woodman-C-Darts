@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-  <meta name="theme-color" content="#10241d">
+  <meta name="theme-color" content="#75d4c0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Woodman C">
@@ -160,12 +160,24 @@
         <div class="legs-score"><span id="playerLegs">0</span><small>LEGS</small><span id="opponentLegs">0</span></div>
       </div>
 
-      <section class="score-card">
-        <p id="scoreRemainingLabel" class="eyebrow">SCORE REMAINING</p>
-        <output id="remainingScore" class="remaining">501</output>
-        <div class="score-meta">
-          <span>Match avg <strong id="averageValue">0.00</strong></span>
-          <span>Visits <strong id="visitCount">0</strong></span>
+      <section class="score-card" aria-label="Player scores">
+        <div id="playerOneScorePanel" class="player-score-panel active">
+          <span class="score-player-number">PLAYER 1</span>
+          <strong id="playerOneScoreName" class="score-player-name"></strong>
+          <output id="playerOneRemaining" class="remaining">501</output>
+          <div class="score-meta">
+            <span>Average <strong id="playerOneAverage">0.00</strong></span>
+            <span>Visits <strong id="playerOneVisits">0</strong></span>
+          </div>
+        </div>
+        <div id="playerTwoScorePanel" class="player-score-panel" hidden>
+          <span class="score-player-number">PLAYER 2</span>
+          <strong id="playerTwoScoreName" class="score-player-name"></strong>
+          <output id="playerTwoRemaining" class="remaining">501</output>
+          <div class="score-meta">
+            <span>Average <strong id="playerTwoAverage">0.00</strong></span>
+            <span>Visits <strong id="playerTwoVisits">0</strong></span>
+          </div>
         </div>
       </section>
 

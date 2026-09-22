@@ -656,6 +656,8 @@ function renderMatch() {
   const activeName = activePlayer === 2 ? match.player2Name : match.playerName;
   const activeStats = activePlayer === 2 ? match.stats2 : match.stats;
   const totals = getTotals(activePlayer);
+  const totals1 = getTotals(1);
+  const totals2 = twoPlayer ? getTotals(2) : null;
   $("playerName").textContent = twoPlayer ? `${match.playerName} v ${match.player2Name}` : match.playerName;
   $("activePlayerName").textContent = activeName;
   $("legLabel").textContent = twoPlayer
@@ -663,11 +665,22 @@ function renderMatch() {
     : match.mode === "practice" ? `Solo practice · Leg ${match.legNumber} · Best of ${match.bestOf || 3}` : `v ${match.opponentName || "Opponent"} · Leg ${match.legNumber} · First to ${match.legsToWin || 2}`;
   $("playerLegs").textContent = match.playerLegs;
   $("opponentLegs").textContent = match.opponentLegs;
-  $("remainingScore").textContent = activePlayer === 2 ? match.remaining2 : match.remaining;
-  $("scoreRemainingLabel").textContent = `${activeName.toUpperCase()} · SCORE REMAINING`;
+  $("playerOneScoreName").textContent = match.playerName;
+  $("playerOneRemaining").textContent = match.remaining;
+  $("playerOneAverage").textContent = totals1.average.toFixed(2);
+  $("playerOneVisits").textContent = totals1.visits;
+  $("playerTwoScorePanel").hidden = !twoPlayer;
+  if (twoPlayer) {
+    $("playerTwoScoreName").textContent = match.player2Name;
+    $("playerTwoRemaining").textContent = match.remaining2;
+    $("playerTwoAverage").textContent = totals2.average.toFixed(2);
+    $("playerTwoVisits").textContent = totals2.visits;
+  }
+  $("playerOneScorePanel").classList.toggle("active", activePlayer === 1);
+  $("playerOneScorePanel").classList.toggle("inactive", activePlayer === 2);
+  $("playerTwoScorePanel").classList.toggle("active", activePlayer === 2);
+  $("playerTwoScorePanel").classList.toggle("inactive", activePlayer === 1);
   $("currentStatsLabel").textContent = `${activeName} statistics`;
-  $("averageValue").textContent = totals.average.toFixed(2);
-  $("visitCount").textContent = totals.visits;
   $("scoreEntry").textContent = entry || "0";
   $("stat40").textContent = activeStats.band40;
   $("stat75").textContent = activeStats.band75;
