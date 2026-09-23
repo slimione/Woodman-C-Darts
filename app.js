@@ -47,6 +47,7 @@ if (match) {
   match.practiceType = match.practiceType || "solo";
   match.currentTurn = match.currentTurn || 1;
   match.remaining2 = Number.isFinite(match.remaining2) ? match.remaining2 : 501;
+  match.phase = match.phase || ((match.remaining === 0 || (isTwoPlayerPractice(match) && match.remaining2 === 0)) ? "leg-complete" : "playing");
 }
 
 const $ = (id) => document.getElementById(id);
@@ -456,6 +457,7 @@ function renderMatchDetail() {
   const stats2 = twoPlayer ? { ...blankStats(), ...(item.stats2 || {}) } : null;
   const legs2 = twoPlayer ? deriveLegs(item, 2) : [];
   const result = isPractice ? "Practice" : item.playerLegs > item.opponentLegs ? "Win" : "Loss";
+  const canResume = canResumePractice(item);
   $("detailTitle").textContent = twoPlayer ? `${item.playerName} v ${item.player2Name}` : isPractice ? `${item.playerName} practice` : `${item.playerName} v ${item.opponentName || "Opponent"}`;
   $("detailView").querySelector("[data-back]").dataset.back = detailBackView;
   $("matchDetail").innerHTML = `
@@ -464,6 +466,7 @@ function renderMatchDetail() {
       <div class="average-callout"><span>${twoPlayer ? `${escapeHTML(item.playerName)} average` : "Match average"}</span><strong>${totals.average.toFixed(2)}</strong></div>
     </section>
     <div class="result-management-actions">
+      ${canResume ? '<button id="resumePracticeButton" class="primary-button" type="button">Resume practice</button>' : ""}
       ${twoPlayer ? '<span class="secondary-button edit-visits-note">Edit visits below</span>' : '<button id="editPastMatchButton" class="secondary-button" type="button">Edit this result</button>'}
       <button id="deletePastMatchButton" class="secondary-button danger-text" type="button">Delete result</button>
     </div>
@@ -485,8 +488,81 @@ function renderMatchDetail() {
       ${twoPlayer && legs2.length ? `<h3 class="second-leg-heading">${escapeHTML(item.player2Name)}</h3><div class="leg-list">${legs2.map((leg) => `<div class="leg-row"><div><strong>Leg ${leg.number}</strong><span>${leg.won === true ? "Won" : leg.won === false ? "Lost" : "Not completed"}</span></div><div><strong>${Number(leg.average || 0).toFixed(2)} avg</strong><span>${leg.points} scored · ${leg.darts} darts · High ${leg.highestVisit ?? "—"}</span></div></div>`).join("")}</div>` : ""}
     </section>`;
   if (!twoPlayer) $("editPastMatchButton").addEventListener("click", openEditMatch);
+  if (canResume) $("resumePracticeButton").addEventListener("click", resumePracticeResult);
   $("deletePastMatchButton").addEventListener("click", deleteMatchResult);
   attachVisitListeners();
+}
+
+function canResumePractice(item) {
+  if (item?.mode !== "practice") return false;
+  const legsToWin = Math.floor((Number(item.bestOf) || 3) / 2) + 1;
+  return Number(item.playerLegs || 0) < legsToWin && Number(item.opponentLegs || 0) < legsToWin;
+}
+
+function practiceMatchFromRecord(item) {
+  if (item.resumeState) {
+    return {
+      ...item.resumeState,
+      stats: { ...blankStats(), ...(item.resumeState.stats || {}) },
+      stats2: { ...blankStats(), ...(item.resumeState.stats2 || {}) },
+      visits: Array.isArray(item.resumeState.visits) ? item.resumeState.visits.map((visit) => ({ ...visit })) : [],
+      undo: Array.isArray(item.resumeState.undo) ? item.resumeState.undo : [],
+      complete: false,
+      phase: "playing"
+    };
+  }
+  const twoPlayer = isTwoPlayerPractice(item);
+  const scoreVisits = (item.scoreVisits || []).map((visit) => ({ ...visit, type: "score" }));
+  const recordedLegs = [...(item.legs || []), ...(item.player2Legs || [])].map((leg) => Number(leg.number) || 1);
+  const visitLegs = scoreVisits.map((visit) => Number(visit.leg) || 1);
+  const legNumber = Math.max(1, ...recordedLegs, ...visitLegs);
+  const remainingFor = (player) => 501 - scoreVisits
+    .filter((visit) => (Number(visit.leg) || 1) === legNumber && (!twoPlayer || (Number(visit.player) || 1) === player))
+    .reduce((sum, visit) => sum + (Number(visit.score) || 0), 0);
+  const visitsThisLeg = scoreVisits.filter((visit) => (Number(visit.leg) || 1) === legNumber);
+  const lastPlayer = Number(visitsThisLeg.length ? visitsThisLeg[visitsThisLeg.length - 1].player : 0);
+  const currentTurn = twoPlayer
+    ? (lastPlayer ? (lastPlayer === 1 ? 2 : 1) : (legNumber % 2 === 0 ? 2 : 1))
+    : 1;
+  return {
+    id: item.id,
+    profileId: item.profileId,
+    playerName: item.playerName,
+    mode: "practice",
+    practiceType: item.practiceType || "solo",
+    opponentName: "Practice",
+    player2ProfileId: item.player2ProfileId || null,
+    player2Name: item.player2Name || null,
+    bestOf: Number(item.bestOf) || 3,
+    legsToWin: Math.floor((Number(item.bestOf) || 3) / 2) + 1,
+    startedAt: item.startedAt || item.finishedAt || new Date().toISOString(),
+    remaining: Math.max(0, remainingFor(1)),
+    remaining2: twoPlayer ? Math.max(0, remainingFor(2)) : 501,
+    playerLegs: Number(item.playerLegs) || 0,
+    opponentLegs: Number(item.opponentLegs) || 0,
+    currentTurn,
+    legNumber,
+    visits: scoreVisits,
+    stats: { ...blankStats(), ...(item.stats || {}) },
+    stats2: { ...blankStats(), ...(item.stats2 || {}) },
+    undo: [],
+    complete: false,
+    phase: "playing"
+  };
+}
+
+function resumePracticeResult() {
+  const item = data.history.find((record) => record.id === selectedMatchId);
+  if (!item || !canResumePractice(item)) return;
+  if (match && !match.complete && match.id !== item.id && !confirm("Replace the unfinished match with this practice session?")) return;
+  match = practiceMatchFromRecord(item);
+  data.history = data.history.filter((record) => record.id !== item.id);
+  saveData();
+  saveMatch();
+  selectedMatchId = null;
+  entry = "";
+  setView("game");
+  showGameMessage("Practice resumed where you left off.");
 }
 
 function deleteMatchResult() {
@@ -635,7 +711,7 @@ function startMatch() {
     player2ProfileId: profile2?.id || null, player2Name: profile2?.name || null,
     bestOf: Number($("bestOfSelect").value) || 3, legsToWin: Math.floor((Number($("bestOfSelect").value) || 3) / 2) + 1,
     startedAt: new Date().toISOString(), remaining: 501, playerLegs: 0, opponentLegs: 0,
-    remaining2: 501, currentTurn: 1, legNumber: 1, visits: [], stats: blankStats(), stats2: blankStats(), undo: [], complete: false
+    remaining2: 501, currentTurn: 1, legNumber: 1, visits: [], stats: blankStats(), stats2: blankStats(), undo: [], complete: false, phase: "playing"
   };
   saveMatch();
   entry = "";
@@ -658,6 +734,8 @@ function renderMatch() {
   const totals = getTotals(activePlayer);
   const totals1 = getTotals(1);
   const totals2 = twoPlayer ? getTotals(2) : null;
+  gameView.classList.toggle("competitive-mode", match.mode === "opponent");
+  gameView.classList.toggle("two-player-mode", twoPlayer);
   $("playerName").textContent = twoPlayer ? `${match.playerName} v ${match.player2Name}` : match.playerName;
   $("activePlayerName").textContent = activeName;
   $("legLabel").textContent = twoPlayer
@@ -687,14 +765,15 @@ function renderMatch() {
   $("stat100").textContent = activeStats.band100;
   $("stat140").textContent = activeStats.band140;
   $("stat180").textContent = activeStats.band180;
-  $("undoButton").disabled = !match.undo.length || match.complete;
-  $("submitScoreButton").disabled = match.complete;
-  $("opponentWonButton").disabled = match.complete;
+  const scoringLocked = match.complete || match.phase !== "playing";
+  $("undoButton").disabled = !match.undo.length || scoringLocked;
+  $("submitScoreButton").disabled = scoringLocked;
+  $("opponentWonButton").disabled = scoringLocked;
   $("opponentWonButton").textContent = match.mode === "practice" ? "Finish practice" : "Opponent won leg";
 }
 
 function enterKey(value) {
-  if (!match || match.complete || entry.length >= 3) return;
+  if (!match || match.complete || match.phase !== "playing" || entry.length >= 3) return;
   const next = `${entry}${value}`.replace(/^0+(?=\d)/, "");
   if (Number(next) <= 180) entry = next;
   else showGameMessage("Maximum visit is 180.");
@@ -720,6 +799,7 @@ function snapshot() {
 }
 
 function submitScore() {
+  if (!match || match.complete || match.phase !== "playing") return;
   const score = Number(entry);
   const activeRemaining = isTwoPlayerPractice(match) && match.currentTurn === 2 ? match.remaining2 : match.remaining;
   showGameMessage("");
@@ -772,9 +852,11 @@ function opponentWonLeg() {
 }
 
 function endLeg(winner) {
+  const isComplete = match.playerLegs === (match.legsToWin || 2) || match.opponentLegs === (match.legsToWin || 2);
+  match.phase = isComplete ? "match-complete" : "leg-complete";
+  match.legWinner = winner;
   saveMatch();
   renderMatch();
-  const isComplete = match.playerLegs === (match.legsToWin || 2) || match.opponentLegs === (match.legsToWin || 2);
   $("legEndTitle").textContent = `${winner} won leg ${match.legNumber}`;
   $("legEndSummary").textContent = isComplete ? `Final score: ${match.playerLegs}–${match.opponentLegs}` : `Match score: ${match.playerLegs}–${match.opponentLegs}`;
   $("nextLegButton").hidden = isComplete;
@@ -787,6 +869,8 @@ function nextLeg() {
   match.remaining = 501;
   match.remaining2 = 501;
   if (isTwoPlayerPractice(match)) match.currentTurn = match.legNumber % 2 === 0 ? 2 : 1;
+  match.phase = "playing";
+  match.legWinner = null;
   entry = "";
   saveMatch();
   renderMatch();
@@ -810,6 +894,9 @@ function buildLegBreakdown(playerNumber = 1) {
 }
 
 function finishMatch() {
+  const resumableState = match.mode === "practice" && match.phase === "playing"
+    ? JSON.parse(JSON.stringify({ ...match, complete: false, phase: "playing" }))
+    : null;
   match.complete = true;
   const totals = getTotals(1);
   const totals2 = isTwoPlayerPractice(match) ? getTotals(2) : null;
@@ -823,7 +910,7 @@ function finishMatch() {
     opponentLegs: match.opponentLegs, average: totals.average, visits: totals.visits,
     points: totals.points, darts: totals.darts,
     highestVisit: scoreVisits.filter((visit) => !isTwoPlayerPractice(match) || Number(visit.player || 1) === 1).length ? Math.max(...scoreVisits.filter((visit) => !isTwoPlayerPractice(match) || Number(visit.player || 1) === 1).map((visit) => visit.score)) : 0,
-    stats: { ...match.stats }, scoreVisits, legs: buildLegBreakdown(1),
+    stats: { ...match.stats }, scoreVisits, legs: buildLegBreakdown(1), resumeState: resumableState,
     player2Average: totals2?.average, player2Visits: totals2?.visits, player2Points: totals2?.points, player2Darts: totals2?.darts,
     player2HighestVisit: totals2 ? (scoreVisits.filter((visit) => Number(visit.player) === 2).length ? Math.max(...scoreVisits.filter((visit) => Number(visit.player) === 2).map((visit) => visit.score)) : 0) : undefined,
     stats2: totals2 ? { ...match.stats2 } : undefined, player2Legs: totals2 ? buildLegBreakdown(2) : undefined
@@ -949,7 +1036,9 @@ $("startMatchButton").addEventListener("click", startMatch);
 $("submitScoreButton").addEventListener("click", submitScore);
 $("undoButton").addEventListener("click", undo);
 $("opponentWonButton").addEventListener("click", () => {
-  if (match?.mode === "practice") finishMatch();
+  if (match?.mode === "practice") {
+    if (confirm("Finish practice now? You can resume it later from Match History.")) finishMatch();
+  }
   else opponentDialog.showModal();
 });
 $("confirmOpponentButton").addEventListener("click", (event) => {
@@ -969,6 +1058,7 @@ $("finishMatchButton").addEventListener("click", (event) => {
   legEndDialog.close("finish");
   finishMatch();
 });
+legEndDialog.addEventListener("cancel", (event) => event.preventDefault());
 $("resultDoneButton").addEventListener("click", (event) => {
   event.preventDefault();
   resultDialog.close("done");
@@ -1021,3 +1111,11 @@ if ("serviceWorker" in navigator) window.addEventListener("load", () => navigato
 
 renderSetup();
 setView(match && !match.complete ? "game" : "setup");
+if (match && !match.complete && match.phase !== "playing") {
+  const isComplete = match.phase === "match-complete";
+  $("legEndTitle").textContent = `${match.legWinner || match.playerName} won leg ${match.legNumber}`;
+  $("legEndSummary").textContent = isComplete ? `Final score: ${match.playerLegs}–${match.opponentLegs}` : `Match score: ${match.playerLegs}–${match.opponentLegs}`;
+  $("nextLegButton").hidden = isComplete;
+  $("finishMatchButton").hidden = !isComplete;
+  legEndDialog.showModal();
+}

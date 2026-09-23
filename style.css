@@ -190,6 +190,7 @@ input, select {
 .profile-history h3 { margin: 0; }
 .result-management-actions { display: grid; grid-template-columns: 1.5fr 1fr; gap: 10px; margin-top: 12px; }
 .result-management-actions button { width: 100%; }
+.result-management-actions:has(#resumePracticeButton) { grid-template-columns: 1.4fr 1.2fr 1fr; }
 .edit-visits-note { display: flex; align-items: center; justify-content: center; }
 .edit-form { padding: 24px; }
 .edit-form h3 { margin: 24px 0 4px; }
@@ -314,6 +315,12 @@ dialog form { padding: 26px; text-align: center; }
   .stats-card span { font-size: .75rem; }
   .game-actions { gap: 12px; }
   .game-actions button { min-height: 60px; }
+  #gameView.competitive-mode { grid-template-columns: .95fr 1.05fr; }
+  #gameView.competitive-mode .remaining { font-size: clamp(8rem, 21vw, 10rem); }
+  #gameView.competitive-mode .score-player-name { font-size: 1.45rem; }
+  #gameView.competitive-mode .keypad button { min-height: 86px; font-size: 2.55rem; }
+  #gameView.competitive-mode .keypad .key-secondary { font-size: 1.15rem; }
+  #gameView.competitive-mode .score-entry { height: 72px; font-size: 3.5rem; }
 }
 
 @media (min-width: 900px) and (max-width: 1100px) and (max-height: 850px) {
@@ -336,6 +343,8 @@ dialog form { padding: 26px; text-align: center; }
   .stats-card { margin-top: 2px; padding: 8px 6px; }
   .game-actions { margin-top: 0; }
   .game-actions button { min-height: 48px; }
+  #gameView.competitive-mode .remaining { font-size: 7.4rem; }
+  #gameView.competitive-mode .keypad button { min-height: 62px; font-size: 2.1rem; }
 }
 
 @media (max-width: 600px) {
@@ -360,6 +369,7 @@ dialog form { padding: 26px; text-align: center; }
   .edit-leg-row > strong { grid-column: 1 / -1; }
   .visit-row { grid-template-columns: 1fr; }
   .result-management-actions { grid-template-columns: 1fr; }
+  .result-management-actions:has(#resumePracticeButton) { grid-template-columns: 1fr; }
   .name-keyboard-keys, .name-keyboard-row { gap: 6px; }
   .name-keyboard-row { width: 100%; }
   .name-keyboard-keys button, .name-keyboard-tools button { min-height: 50px; }
