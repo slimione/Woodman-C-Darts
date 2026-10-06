@@ -3,8 +3,8 @@
 const STORAGE_KEY = "woodmanCDartsDataV2";
 const ACTIVE_KEY = "woodmanCDartsActiveMatchV2";
 const LEGACY_STORAGE_KEYS = ["woodmanCDartsDataV1", "woodmanCDartsActiveMatchV1"];
-const DEFAULT_ROSTER_VERSION = 1;
-const DEFAULT_PLAYER_NAMES = ["Dima", "Steve", "Oscar", "Karen", "Nik", "Norman", "Rob S", "Rob M", "Trevor", "Gareth"];
+const DEFAULT_ROSTER_VERSION = 2;
+const DEFAULT_PLAYER_NAMES = ["Dima", "Steve", "Oscar", "Karen", "Nik", "Norman", "Rob S", "Rob M", "Trevor", "Gareth", "Nick"];
 
 const blankStats = () => ({ band40: 0, band75: 0, band100: 0, band140: 0, band180: 0 });
 const initialData = () => ({ profiles: [], history: [], rosterSeedVersion: 0 });
@@ -20,12 +20,15 @@ let selectedProfileId = null;
 let detailBackView = "history";
 let selectedVisitIndex = null;
 let opponentNameDraft = "";
+let nameKeyboardTarget = "opponent";
 
 if (!Array.isArray(data.profiles)) data.profiles = [];
 if (!Array.isArray(data.history)) data.history = [];
 if ((Number(data.rosterSeedVersion) || 0) < DEFAULT_ROSTER_VERSION) {
   const existingNames = new Set(data.profiles.map((profile) => String(profile.name).trim().toLowerCase()));
   DEFAULT_PLAYER_NAMES.forEach((name, index) => {
+    // Existing rosters receive only the new player; keep previously deleted profiles deleted.
+    if (Number(data.rosterSeedVersion) >= 1 && name !== "Nick") return;
     if (existingNames.has(name.toLowerCase())) return;
     data.profiles.push({
       id: `default-player-${index + 1}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
@@ -223,7 +226,17 @@ function applyOpponentNameAction(action) {
 
 function openOpponentKeyboard() {
   if (selectedMode() !== "opponent") return;
-  opponentNameDraft = $("opponentName").value;
+  openNameKeyboard("opponent");
+}
+
+function openNameKeyboard(target) {
+  nameKeyboardTarget = target;
+  const addingPlayer = target === "player";
+  $("nameKeyboardEyebrow").textContent = addingPlayer ? "ADD PLAYER" : "OPPONENT";
+  $("nameKeyboardTitle").textContent = addingPlayer ? "Enter player name" : "Enter opponent name";
+  $("saveOpponentNameButton").textContent = addingPlayer ? "Add player" : "Use this name";
+  $("opponentKeyboardKeys").setAttribute("aria-label", addingPlayer ? "Player name keyboard" : "Opponent name keyboard");
+  opponentNameDraft = addingPlayer ? newPlayerName.value : $("opponentName").value;
   $("opponentKeyboardMessage").textContent = "";
   renderOpponentNameDraft();
   opponentKeyboardDialog.showModal();
@@ -231,6 +244,17 @@ function openOpponentKeyboard() {
 
 function saveOpponentName() {
   const name = opponentNameDraft.trim();
+  if (nameKeyboardTarget === "player") {
+    if (!name || data.profiles.some((profile) => profile.name.toLowerCase() === name.toLowerCase())) {
+      $("opponentKeyboardMessage").textContent = name ? "That player already exists." : "Enter a player name.";
+      return;
+    }
+    newPlayerName.value = name;
+    addPlayer();
+    updateStartAvailability();
+    opponentKeyboardDialog.close("save");
+    return;
+  }
   if (!name) {
     $("opponentKeyboardMessage").textContent = "Enter an opponent name.";
     return;
@@ -1026,7 +1050,8 @@ opponentKeyboardDialog.addEventListener("keydown", (event) => {
 document.querySelectorAll("[data-key]").forEach((button) => button.addEventListener("click", () => enterKey(button.dataset.key)));
 $("clearButton").addEventListener("click", () => { entry = ""; renderMatch(); });
 $("backspaceButton").addEventListener("click", () => { entry = entry.slice(0, -1); renderMatch(); });
-$("addPlayerButton").addEventListener("click", addPlayer);
+$("addPlayerButton").addEventListener("click", () => openNameKeyboard("player"));
+newPlayerName.addEventListener("click", () => openNameKeyboard("player"));
 $("deletePlayerButton").addEventListener("click", deletePlayer);
 $("playerStatsButton").addEventListener("click", () => {
   selectedProfileId = playerSelect.value;
@@ -1099,7 +1124,12 @@ $("closeMenuButton").addEventListener("click", closeMenu);
 $("menuBackdrop").addEventListener("click", closeMenu);
 $("menuHomeButton").addEventListener("click", () => { closeMenu(); setView("setup"); });
 $("menuHistoryButton").addEventListener("click", () => { closeMenu(); setView("history"); });
-newPlayerName.addEventListener("keydown", (event) => { if (event.key === "Enter") addPlayer(); });
+newPlayerName.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" || event.key === " ") {
+    event.preventDefault();
+    openNameKeyboard("player");
+  }
+});
 document.addEventListener("keydown", (event) => {
   if (!gameView.classList.contains("active") || document.querySelector("dialog[open]")) return;
   if (/^\d$/.test(event.key)) enterKey(event.key);

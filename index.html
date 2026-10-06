@@ -34,7 +34,7 @@
         </div>
         <label for="newPlayerName">Or add a player</label>
         <div class="profile-row">
-          <input id="newPlayerName" type="text" maxlength="30" autocomplete="name" placeholder="Player name">
+          <input id="newPlayerName" type="text" maxlength="30" readonly aria-haspopup="dialog" placeholder="Tap to enter player name">
           <button id="addPlayerButton" class="small-button" type="button">Add</button>
         </div>
         <fieldset class="match-mode-fieldset">
@@ -282,8 +282,8 @@
 
   <dialog id="opponentKeyboardDialog" class="name-keyboard-dialog">
     <form method="dialog">
-      <p class="eyebrow">OPPONENT</p>
-      <h2>Enter opponent name</h2>
+      <p id="nameKeyboardEyebrow" class="eyebrow">OPPONENT</p>
+      <h2 id="nameKeyboardTitle">Enter opponent name</h2>
       <output id="opponentKeyboardValue" class="name-keyboard-value" aria-live="polite">Tap letters below</output>
       <div id="opponentKeyboardKeys" class="name-keyboard-keys" aria-label="Opponent name keyboard"></div>
       <div class="name-keyboard-tools">
