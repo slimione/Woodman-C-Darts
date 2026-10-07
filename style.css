@@ -243,7 +243,11 @@ input, select {
 .stats-card div + div { border-left: 1px solid var(--line); }
 .stats-card strong { display: block; font-size: 1.25rem; }
 .stats-card span { display: block; margin-top: 2px; color: var(--muted); font-size: .68rem; }
-.game-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 12px; }
+.game-actions { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 10px; margin-top: 12px; }
+.continue-game { margin-bottom: 14px; }
+.recent-visits { margin: 0 0 6px; color: #d8e4e0; text-align: center; font-size: .8rem; }
+.storage-notice { margin-bottom: 12px; padding: 12px; border: 2px solid var(--danger); border-radius: 12px; background: #fff0f1; }
+.storage-notice p { margin-bottom: 8px; }
 
 .menu-panel {
   position: fixed; z-index: 20; top: 0; right: 0; bottom: 0;
@@ -387,7 +391,7 @@ dialog form { padding: 26px; text-align: center; }
   #gameView .entry-card { padding: 10px 12px; }
   #gameView .score-entry { height: 48px; font-size: 2.8rem; }
   #gameView .keypad { gap: 8px; }
-  #gameView .keypad button { min-height: clamp(48px, 8vh, 78px); min-height: clamp(48px, 8dvh, 78px); font-size: 2.35rem; }
+  #gameView .keypad button { min-height: clamp(48px, 7.5vh, 78px); min-height: clamp(48px, 7.5dvh, 78px); font-size: 2.35rem; }
   #gameView .keypad .key-secondary { font-size: 1.05rem; }
   #gameView .submit-button { min-height: 52px; margin-top: 8px; font-size: 1.2rem; }
   #gameView .message { margin-top: 6px; font-size: .85rem; }

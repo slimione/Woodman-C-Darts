@@ -9,7 +9,7 @@ const DEFAULT_PLAYER_NAMES = ["Dima", "Steve", "Oscar", "Karen", "Nik", "Norman"
 const blankStats = () => ({ band40: 0, band75: 0, band100: 0, band140: 0, band180: 0 });
 const initialData = () => ({ profiles: [], history: [], rosterSeedVersion: 0 });
 
-LEGACY_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+LEGACY_STORAGE_KEYS.forEach((key) => { try { localStorage.removeItem(key); } catch { /* Saving will show a persistent warning. */ } });
 
 let data = loadJSON(STORAGE_KEY, initialData());
 let match = loadJSON(ACTIVE_KEY, null);
@@ -80,10 +80,21 @@ function loadJSON(key, fallback) {
   }
 }
 
-function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+function storageWarning() {
+  const message = "Changes could not be saved. Keep this app open, retry saving, or export a backup from the menu.";
+  const notice = document.getElementById("storageWarning");
+  if (notice) { notice.textContent = message; document.getElementById("storageNotice").hidden = false; }
+}
+function saveData() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); return true; }
+  catch { storageWarning(); return false; }
+}
 function saveMatch() {
-  if (match) localStorage.setItem(ACTIVE_KEY, JSON.stringify(match));
-  else localStorage.removeItem(ACTIVE_KEY);
+  try {
+    if (match) localStorage.setItem(ACTIVE_KEY, JSON.stringify(match));
+    else localStorage.removeItem(ACTIVE_KEY);
+    return true;
+  } catch { storageWarning(); return false; }
 }
 
 function escapeHTML(value) {
@@ -139,6 +150,12 @@ function getRecordStatsForPlayer(item, playerNumber) {
   return getRecordStats(item);
 }
 
+function isUnfinishedResult(item) {
+  if (item.mode === "practice") return false;
+  const target = Math.floor((Number(item.bestOf) || 3) / 2) + 1;
+  return Number(item.playerLegs || 0) < target && Number(item.opponentLegs || 0) < target;
+}
+
 function historyItemHTML(item) {
   const totals = getRecordStats(item);
   const isPractice = item.mode === "practice";
@@ -146,7 +163,7 @@ function historyItemHTML(item) {
   const won = item.playerLegs > item.opponentLegs;
   return `<button class="history-item" type="button" data-match-id="${escapeHTML(item.id)}">
     <div><strong>${escapeHTML(twoPlayer ? `${item.playerName} v ${item.player2Name}` : item.playerName)}</strong><span>${twoPlayer ? `Two-player practice · ${totals.average.toFixed(2)} / ${getRecordStatsForPlayer(item, 2).average.toFixed(2)} avg` : `${isPractice ? "Practice" : `v ${escapeHTML(item.opponentName || "Opponent")}`} · Avg ${totals.average.toFixed(2)}`}</span></div>
-    <div class="history-result">${twoPlayer ? `${item.playerLegs}–${item.opponentLegs}` : isPractice ? `${totals.visits} visits` : `${item.playerLegs}–${item.opponentLegs}`}<span>${isPractice ? "PRACTICE" : won ? "WIN" : "LOSS"}</span></div>
+    <div class="history-result">${twoPlayer ? `${item.playerLegs}–${item.opponentLegs}` : isPractice ? `${totals.visits} visits` : `${item.playerLegs}–${item.opponentLegs}`}<span>${isPractice ? "PRACTICE" : isUnfinishedResult(item) ? "INCOMPLETE" : won ? "WIN" : "LOSS"}</span></div>
   </button>`;
 }
 
@@ -266,13 +283,15 @@ function saveOpponentName() {
 }
 
 function renderSetup() {
+  $("continueGameButton").hidden = !match || match.complete;
+  if (match && !match.complete) $("continueGameButton").textContent = `Continue ${match.playerName}${isTwoPlayerPractice(match) ? ` v ${match.player2Name}` : match.mode === "opponent" ? ` v ${match.opponentName}` : " practice"} · Leg ${match.legNumber}`;
   const current = playerSelect.value;
   const currentSecond = $("secondPlayerSelect").value;
   playerSelect.innerHTML = data.profiles.length
-    ? data.profiles.map((p) => `<option value="${p.id}">${escapeHTML(p.name)}</option>`).join("")
+    ? data.profiles.map((p) => `<option value="${escapeHTML(p.id)}">${escapeHTML(p.name)}</option>`).join("")
     : '<option value="">Add a player first</option>';
   if (data.profiles.some((p) => p.id === current)) playerSelect.value = current;
-  $("secondPlayerSelect").innerHTML = data.profiles.map((p) => `<option value="${p.id}">${escapeHTML(p.name)}</option>`).join("");
+  $("secondPlayerSelect").innerHTML = data.profiles.map((p) => `<option value="${escapeHTML(p.id)}">${escapeHTML(p.name)}</option>`).join("");
   if (data.profiles.some((p) => p.id === currentSecond)) $("secondPlayerSelect").value = currentSecond;
   if ($("secondPlayerSelect").value === playerSelect.value) {
     const alternative = data.profiles.find((p) => p.id !== playerSelect.value);
@@ -314,7 +333,7 @@ function renderHistory() {
   const filter = $("historyPlayerFilter");
   const current = filter.value;
   filter.innerHTML = '<option value="">All players</option>' + data.profiles
-    .map((profile) => `<option value="${profile.id}">${escapeHTML(profile.name)}</option>`).join("");
+    .map((profile) => `<option value="${escapeHTML(profile.id)}">${escapeHTML(profile.name)}</option>`).join("");
   if (data.profiles.some((profile) => profile.id === current)) filter.value = current;
   const records = newestFirst(data.history.filter((item) => !filter.value || item.profileId === filter.value || item.player2ProfileId === filter.value));
   $("allHistoryList").innerHTML = records.length
@@ -377,7 +396,7 @@ function visitsHTML(item) {
   });
   return [...groups.entries()].map(([leg, visits]) => `<section class='visit-leg'><h4>Leg ${leg}</h4><div class='visit-list'>${visits.map((visit) => `
     <button class='visit-row' type='button' data-visit-index='${visit.index}'>
-      <span><small>${isTwoPlayerPractice(item) ? `${escapeHTML(visit.player === 2 ? item.player2Name : item.playerName)} · ` : ""}Visit ${visit.number}</small><strong>${visit.score}</strong></span>
+      <span><small>${isTwoPlayerPractice(item) ? `${escapeHTML(visit.player === 2 ? item.player2Name : item.playerName)} · ` : ""}Visit ${visit.number}</small><strong>${visit.bust ? "Bust" : visit.score}</strong></span>
       <span><small>${visit.darts} ${visit.darts === 1 ? 'dart' : 'darts'}${visit.checkout ? ' · checkout' : ''}</small><strong class='${visit.remaining < 0 ? 'invalid-remaining' : ''}'>${visit.remaining} left</strong></span>
     </button>`).join('')}</div></section>`).join('');
 }
@@ -415,6 +434,7 @@ function recalculateFromVisits(item) {
     const priorLegs = playerNumber === 2 ? item.player2Legs : item.legs;
     const previousLegs = new Map((priorLegs || []).map((leg) => [Number(leg.number), leg]));
     const grouped = new Map();
+    previousLegs.forEach((leg, number) => grouped.set(number, []));
     visits.forEach((visit) => {
       const leg = Number(visit.leg) || 1;
       if (!grouped.has(leg)) grouped.set(leg, []);
@@ -426,8 +446,10 @@ function recalculateFromVisits(item) {
       return {
         number, points: legPoints, darts: legDarts, visits: legVisits.length,
         average: legDarts ? (legPoints / legDarts) * 3 : 0,
-        highestVisit: Math.max(...legVisits.map((visit) => Number(visit.score))),
-        won: previousLegs.get(number)?.won ?? (legVisits.some((visit) => visit.checkout) ? true : null)
+        highestVisit: legVisits.length ? Math.max(...legVisits.map((visit) => Number(visit.score))) : 0,
+        won: legVisits.some((visit) => visit.checkout) ? true : isTwoPlayerPractice(item)
+          ? (allVisits.some((visit) => Number(visit.leg) === number && Number(visit.player || 1) !== playerNumber && visit.checkout) ? false : null)
+          : previousLegs.get(number)?.won === false ? false : null
       };
     });
     if (playerNumber === 1) Object.assign(item, totals, { stats, legs });
@@ -435,6 +457,9 @@ function recalculateFromVisits(item) {
   }
   recalculatePlayer(1);
   if (isTwoPlayerPractice(item)) recalculatePlayer(2);
+  item.playerLegs = item.legs.filter((leg) => leg.won === true).length;
+  item.opponentLegs = isTwoPlayerPractice(item) ? item.player2Legs.filter((leg) => leg.won === true).length : item.legs.filter((leg) => leg.won === false).length;
+  item.resumeState = null;
   item.editedAt = new Date().toISOString();
 }
 
@@ -447,20 +472,21 @@ function saveVisitEdit(event) {
   }
   const score = Number($("editVisitScore").value);
   const darts = Number($("editVisitDarts").value);
-  if (!Number.isInteger(score) || score < 0 || score > 180) {
+  if (!Number.isInteger(score) || score < 0 || score > 180 || !Number.isInteger(darts) || darts < 1 || darts > 3) {
     $("editVisitMessage").textContent = "Enter a score from 0 to 180.";
     return;
   }
-  const candidateVisits = item.scoreVisits.map((visit, index) => index === selectedVisitIndex ? { ...visit, score, darts } : visit);
+  const candidateVisits = item.scoreVisits.map((visit, index) => index === selectedVisitIndex ? { ...visit, score, darts, bust: false } : { ...visit });
   const editedLeg = Number(candidateVisits[selectedVisitIndex].leg) || 1;
   const editedPlayer = Number(candidateVisits[selectedVisitIndex].player) || 1;
   let remaining = 501;
   for (const visit of candidateVisits.filter((entry) => (Number(entry.leg) || 1) === editedLeg && (!isTwoPlayerPractice(item) || (Number(entry.player) || 1) === editedPlayer))) {
-    if (Number(visit.score) > remaining) {
-      $("editVisitMessage").textContent = "That change would make a later visit go below zero.";
+    if (remaining === 0 || Number(visit.score) > remaining || remaining - Number(visit.score) === 1) {
+      $("editVisitMessage").textContent = "That change would create an invalid remaining score or a visit after checkout.";
       return;
     }
     remaining -= Number(visit.score);
+    visit.checkout = remaining === 0;
   }
   item.scoreVisits = candidateVisits;
   recalculateFromVisits(item);
@@ -481,7 +507,7 @@ function renderMatchDetail() {
   const totals2 = twoPlayer ? getRecordStatsForPlayer(item, 2) : null;
   const stats2 = twoPlayer ? { ...blankStats(), ...(item.stats2 || {}) } : null;
   const legs2 = twoPlayer ? deriveLegs(item, 2) : [];
-  const result = isPractice ? "Practice" : item.playerLegs > item.opponentLegs ? "Win" : "Loss";
+  const result = isPractice ? "Practice" : isUnfinishedResult(item) ? "Incomplete" : item.playerLegs > item.opponentLegs ? "Win" : "Loss";
   const canResume = canResumePractice(item);
   $("detailTitle").textContent = twoPlayer ? `${item.playerName} v ${item.player2Name}` : isPractice ? `${item.playerName} practice` : `${item.playerName} v ${item.opponentName || "Opponent"}`;
   $("detailView").querySelector("[data-back]").dataset.back = detailBackView;
@@ -580,10 +606,12 @@ function resumePracticeResult() {
   const item = data.history.find((record) => record.id === selectedMatchId);
   if (!item || !canResumePractice(item)) return;
   if (match && !match.complete && match.id !== item.id && !confirm("Replace the unfinished match with this practice session?")) return;
+  const previousMatch = match;
   match = practiceMatchFromRecord(item);
+  if (!saveMatch()) { match = previousMatch; return; }
+  const previousHistory = data.history;
   data.history = data.history.filter((record) => record.id !== item.id);
-  saveData();
-  saveMatch();
+  if (!saveData()) data.history = previousHistory;
   selectedMatchId = null;
   entry = "";
   setView("game");
@@ -618,6 +646,12 @@ function openEditMatch() {
   $("editOpponentName").value = item.opponentName || "";
   $("editPlayerLegs").value = item.playerLegs ?? 0;
   $("editOpponentLegs").value = item.opponentLegs ?? 0;
+  const legLimit = Math.floor((Number(item.bestOf) || 3) / 2) + 1;
+  $("editPlayerLegs").max = legLimit;
+  $("editOpponentLegs").max = legLimit;
+  const hasVisits = !!item.scoreVisits?.length;
+  ["editPlayerLegs", "editOpponentLegs", "editAverage", "editDarts", "editPoints", "editHighestVisit", "editBand40", "editBand75", "editBand100", "editBand140", "editBand180"].forEach((id) => { $(id).readOnly = hasVisits; });
+  $("editLegs").hidden = hasVisits;
   $("editAverage").value = totals.average.toFixed(2);
   $("editDarts").value = totals.darts ?? "";
   $("editPoints").value = totals.points;
@@ -635,7 +669,7 @@ function openEditMatch() {
     <label>Darts<input data-leg-field="darts" type="number" min="0" step="1" value="${Number(leg.darts) || 0}"></label>
     <label>High<input data-leg-field="highestVisit" type="number" min="0" max="180" step="1" value="${Number(leg.highestVisit) || 0}"></label>
   </div>`).join("") : '<p class="empty-state compact">No per-leg data was stored for this match.</p>';
-  $("editMessage").textContent = "";
+  $("editMessage").textContent = hasVisits ? "Scoring totals and leg results come from the visits. Change them by tapping a visit in Match Stats." : "";
   updateEditMode();
   setView("edit");
 }
@@ -659,6 +693,14 @@ function saveEditedMatch(event) {
   const finishedAt = new Date($("editFinishedAt").value);
   if (Number.isNaN(finishedAt.getTime())) {
     $("editMessage").textContent = "Choose a valid date and time.";
+    return;
+  }
+  if (item.scoreVisits?.length) {
+    item.mode = mode;
+    item.opponentName = mode === "practice" ? "Practice" : opponentName;
+    item.finishedAt = finishedAt.toISOString();
+    recalculateFromVisits(item);
+    if (saveData()) setView("detail");
     return;
   }
   const editedLegs = [...$("editLegs").querySelectorAll("[data-edit-leg]")].map((row) => {
@@ -689,8 +731,7 @@ function saveEditedMatch(event) {
     }, legs: editedLegs.length ? editedLegs : item.legs,
     editedAt: new Date().toISOString()
   });
-  saveData();
-  setView("detail");
+  if (saveData()) setView("detail");
 }
 
 function renderProfileStats() {
@@ -698,7 +739,14 @@ function renderProfileStats() {
   if (!profile) return setView("setup");
   const records = data.history.filter((item) => item.profileId === profile.id || item.player2ProfileId === profile.id);
   const playerNumberFor = (item) => item.player2ProfileId === profile.id ? 2 : 1;
-  const wins = records.filter((item) => playerNumberFor(item) === 2 ? item.opponentLegs > item.playerLegs : item.playerLegs > item.opponentLegs).length;
+  const competitive = records.filter((item) => item.mode !== "practice" && !isUnfinishedResult(item));
+  const practice = records.filter((item) => item.mode === "practice");
+  const wins = competitive.filter((item) => item.playerLegs > item.opponentLegs).length;
+  const sessionAverage = (sessions) => {
+    const totals = sessions.map((item) => getRecordStatsForPlayer(item, playerNumberFor(item))).filter((item) => item.darts > 0);
+    const darts = totals.reduce((sum, item) => sum + item.darts, 0);
+    return darts ? (3 * totals.reduce((sum, item) => sum + item.points, 0) / darts).toFixed(2) : "—";
+  };
   const totalPoints = records.reduce((sum, item) => sum + getRecordStatsForPlayer(item, playerNumberFor(item)).points, 0);
   const knownDarts = records.map((item) => getRecordStatsForPlayer(item, playerNumberFor(item))).filter((item) => item.darts != null);
   const totalDarts = knownDarts.reduce((sum, item) => sum + item.darts, 0);
@@ -712,7 +760,7 @@ function renderProfileStats() {
   $("profileStatsTitle").textContent = profile.name;
   $("profileStats").innerHTML = `
     <section class="profile-summary card"><p class="eyebrow">CAREER SUMMARY</p><div class="detail-grid profile-metrics">
-      ${valueHTML("Matches", records.length)}${valueHTML("Wins", wins)}${valueHTML("Win rate", records.length ? `${Math.round((wins / records.length) * 100)}%` : "—")}${valueHTML("Overall average", totalDarts ? aggregateAverage.toFixed(2) : "—")}${valueHTML("Total scored", totalPoints)}${valueHTML("Highest visit", highest.length ? Math.max(...highest) : "—")}
+      ${valueHTML("Competitive matches", competitive.length)}${valueHTML("Competitive wins", wins)}${valueHTML("Competitive win rate", competitive.length ? `${Math.round((wins / competitive.length) * 100)}%` : "—")}${valueHTML("Competitive average", sessionAverage(competitive))}${valueHTML("Practice sessions", practice.length)}${valueHTML("Practice average", sessionAverage(practice))}${valueHTML("All-session average", totalDarts ? aggregateAverage.toFixed(2) : "—")}${valueHTML("Total scored", totalPoints)}${valueHTML("Highest visit", highest.length ? Math.max(...highest) : "—")}
     </div></section>
     <section class="card detail-section"><h3>Visit bands</h3><div class="band-grid">${valueHTML("40–74", bands.band40)}${valueHTML("75–99", bands.band75)}${valueHTML("100–139", bands.band100)}${valueHTML("140–179", bands.band140)}${valueHTML("180", bands.band180)}</div></section>
     <section class="card history-card profile-history"><div class="section-heading"><h3>Match history</h3><span>${records.length} ${records.length === 1 ? "match" : "matches"}</span></div><div id="profileHistoryList" class="history-list">${records.length ? historyGroupsHTML(newestFirst(records)) : '<p class="empty-state">No completed matches yet.</p>'}</div></section>`;
@@ -791,6 +839,9 @@ function renderMatch() {
   $("stat140").textContent = activeStats.band140;
   $("stat180").textContent = activeStats.band180;
   const scoringLocked = match.complete || match.phase !== "playing";
+  $("bustButton").disabled = scoringLocked;
+  const recent = match.visits.filter((visit) => visit.type === "score" && (!twoPlayer || Number(visit.player || 1) === activePlayer)).slice(-3);
+  $("recentVisits").textContent = `Recent visits: ${recent.length ? recent.map((visit) => visit.bust ? "Bust" : visit.score).join(" · ") : "—"}`;
   $("undoButton").disabled = !match.undo.length || scoringLocked;
   $("submitScoreButton").disabled = scoringLocked;
   $("opponentWonButton").disabled = scoringLocked;
@@ -818,7 +869,7 @@ function snapshot() {
   match.undo.push({
     remaining: match.remaining, remaining2: match.remaining2, currentTurn: match.currentTurn,
     playerLegs: match.playerLegs, opponentLegs: match.opponentLegs,
-    legNumber: match.legNumber, visits: match.visits.map((visit) => ({ ...visit })), stats: { ...match.stats }, stats2: { ...match.stats2 }, complete: match.complete
+    legNumber: match.legNumber, visits: match.visits.map((visit) => ({ ...visit })), stats: { ...match.stats }, stats2: { ...match.stats2 }, complete: match.complete, phase: match.phase, legWinner: match.legWinner
   });
   if (match.undo.length > 30) match.undo.shift();
 }
@@ -840,14 +891,19 @@ function submitScore() {
   commitVisit(score, 3, false);
 }
 
-function commitVisit(score, darts, checkout) {
+function recordBust() {
+  if (!match || match.complete || match.phase !== "playing") return;
+  commitVisit(0, 3, false, true);
+}
+
+function commitVisit(score, darts, checkout, bust = false) {
   snapshot();
   const twoPlayer = isTwoPlayerPractice(match);
   const player = twoPlayer ? match.currentTurn : 1;
   const activeStats = player === 2 ? match.stats2 : match.stats;
   const band = classify(score);
   if (band) activeStats[band] += 1;
-  match.visits.push({ type: "score", score, darts, checkout, player, leg: match.legNumber, at: new Date().toISOString() });
+  match.visits.push({ type: "score", score, darts, checkout, bust, player, leg: match.legNumber, at: new Date().toISOString() });
   if (player === 2) match.remaining2 -= score;
   else match.remaining -= score;
   entry = "";
@@ -922,7 +978,6 @@ function finishMatch() {
   const resumableState = match.mode === "practice" && match.phase === "playing"
     ? JSON.parse(JSON.stringify({ ...match, complete: false, phase: "playing" }))
     : null;
-  match.complete = true;
   const totals = getTotals(1);
   const totals2 = isTwoPlayerPractice(match) ? getTotals(2) : null;
   const scoreVisits = match.visits.filter((visit) => visit.type === "score").map((visit) => ({ ...visit }));
@@ -940,9 +995,16 @@ function finishMatch() {
     player2HighestVisit: totals2 ? (scoreVisits.filter((visit) => Number(visit.player) === 2).length ? Math.max(...scoreVisits.filter((visit) => Number(visit.player) === 2).map((visit) => visit.score)) : 0) : undefined,
     stats2: totals2 ? { ...match.stats2 } : undefined, player2Legs: totals2 ? buildLegBreakdown(2) : undefined
   };
-  if (!data.history.some((item) => item.id === record.id)) data.history.push(record);
-  saveData();
-  localStorage.removeItem(ACTIVE_KEY);
+  const priorHistory = data.history;
+  data.history = data.history.filter((item) => item.id !== record.id).concat(record);
+  if (!saveData()) {
+    data.history = priorHistory;
+    renderMatch();
+    if (match.phase !== "playing" && !legEndDialog.open) legEndDialog.showModal();
+    return;
+  }
+  match.complete = true;
+  try { localStorage.removeItem(ACTIVE_KEY); } catch { storageWarning(); }
   $("resultTitle").textContent = match.mode === "practice" ? "Practice saved" : match.playerLegs > match.opponentLegs ? `${match.playerName} wins!` : `${match.opponentName || "Opponent"} wins`;
   $("resultSummary").textContent = isTwoPlayerPractice(match) ? `${match.playerName} ${match.playerLegs}–${match.opponentLegs} ${match.player2Name} · averages ${totals.average.toFixed(2)} / ${totals2.average.toFixed(2)}` : match.mode === "practice" ? `${totals.visits} visits · Practice average ${totals.average.toFixed(2)}` : `${match.playerLegs}–${match.opponentLegs} · Match average ${totals.average.toFixed(2)}`;
   resultDialog.showModal();
@@ -979,16 +1041,102 @@ async function importBackup(event) {
   if (!file) return;
   try {
     const backup = JSON.parse(await file.text());
-    if (backup.app !== "Woodman C Darts" || !Array.isArray(backup.data?.profiles) || !Array.isArray(backup.data?.history)) throw new Error("Invalid backup");
+    validateBackup(backup);
     if (!confirm("Import this backup? It will replace profiles, history and any active match.")) return;
+    if (!storeImportedBackup(backup)) return;
     data = backup.data;
     match = backup.activeMatch || null;
-    saveData(); saveMatch(); closeMenu();
+    closeMenu();
     setView(match && !match.complete ? "game" : "setup");
   } catch {
     alert("That file is not a valid Woodman C Darts backup.");
   } finally {
     event.target.value = "";
+  }
+}
+
+function validateBackup(backup) {
+  const validString = (value) => typeof value === "string" && value.trim().length > 0;
+  const validNumber = (value) => Number.isFinite(value) && value >= 0;
+  const check = (condition) => { if (!condition) throw new Error("Invalid backup"); };
+  check(backup?.app === "Woodman C Darts" && (!backup.version || backup.version <= 2));
+  check(Array.isArray(backup.data?.profiles) && Array.isArray(backup.data?.history));
+  for (const profile of backup.data.profiles) check(profile && validString(profile.id) && validString(profile.name));
+  check(new Set(backup.data.profiles.map((profile) => profile.id)).size === backup.data.profiles.length);
+  function checkVisits(visits) {
+    check(Array.isArray(visits));
+    for (const visit of visits) {
+      check(visit && Number.isInteger(visit.leg) && visit.leg >= 1);
+      if (visit.type === "opponent-leg") continue;
+      check(Number.isInteger(visit.score) && visit.score >= 0 && visit.score <= 180 && Number.isInteger(visit.darts) && visit.darts >= 1 && visit.darts <= 3);
+      check(visit.player == null || visit.player === 1 || visit.player === 2);
+      check(visit.checkout == null || typeof visit.checkout === "boolean");
+    }
+  }
+  function checkRecord(record) {
+    check(record && validString(record.id) && validString(record.playerName));
+    check(!record.mode || ["practice", "opponent"].includes(record.mode));
+    check(record.bestOf == null || [1, 3, 5, 7, 9].includes(record.bestOf));
+    check(record.opponentName == null || typeof record.opponentName === "string");
+    check(record.player2Name == null || typeof record.player2Name === "string");
+    for (const key of ["playerLegs", "opponentLegs", "points", "darts", "average", "highestVisit", "player2Points", "player2Darts", "player2Average"]) check(record[key] == null || validNumber(record[key]));
+    check(record.visits == null || validNumber(record.visits) || Array.isArray(record.visits));
+    for (const key of ["legs", "player2Legs"]) if (record[key] != null) {
+      check(Array.isArray(record[key]));
+      for (const leg of record[key]) check(leg && Number.isInteger(leg.number) && leg.number >= 1 && validNumber(leg.points) && validNumber(leg.darts));
+    }
+    for (const key of ["stats", "stats2"]) if (record[key] != null) {
+      check(typeof record[key] === "object" && !Array.isArray(record[key]));
+      for (const value of Object.values(record[key])) check(validNumber(value));
+    }
+    if (record.scoreVisits != null) checkVisits(record.scoreVisits);
+  }
+  function checkActive(active) {
+    checkRecord(active);
+    checkVisits(active.visits);
+    check(validNumber(active.remaining) && active.remaining <= 501 && Number.isInteger(active.legNumber) && active.legNumber >= 1 && active.legNumber <= (active.bestOf || 3));
+    check(active.undo == null || Array.isArray(active.undo));
+    if (active.undo) for (const prior of active.undo) {
+      check(prior && validNumber(prior.remaining) && Number.isInteger(prior.legNumber));
+      checkVisits(prior.visits);
+      check(prior.stats && typeof prior.stats === "object" && !Array.isArray(prior.stats));
+      prior.stats2 = { ...blankStats(), ...(prior.stats2 || {}) };
+      prior.currentTurn = prior.currentTurn || 1;
+      prior.phase = prior.phase || "playing";
+    }
+    active.undo = active.undo || [];
+    active.stats = { ...blankStats(), ...(active.stats || {}) };
+    active.stats2 = { ...blankStats(), ...(active.stats2 || {}) };
+    active.currentTurn = active.currentTurn || 1;
+    active.remaining2 = active.remaining2 ?? 501;
+    check([1, 2].includes(active.currentTurn) && validNumber(active.remaining2) && active.remaining2 <= 501);
+    active.phase = active.phase || ((active.remaining === 0 || (isTwoPlayerPractice(active) && active.remaining2 === 0)) ? "leg-complete" : "playing");
+    check(["playing", "leg-complete", "match-complete"].includes(active.phase));
+  }
+  for (const record of backup.data.history) {
+    checkRecord(record);
+    if (record.resumeState) checkActive(record.resumeState);
+  }
+  check(new Set(backup.data.history.map((record) => record.id)).size === backup.data.history.length);
+  if (backup.activeMatch) checkActive(backup.activeMatch);
+}
+
+function storeImportedBackup(backup) {
+  let previousData, previousMatch;
+  try {
+    previousData = localStorage.getItem(STORAGE_KEY);
+    previousMatch = localStorage.getItem(ACTIVE_KEY);
+    localStorage.setItem(ACTIVE_KEY, JSON.stringify(backup.activeMatch || null));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(backup.data));
+    return true;
+  } catch {
+    try {
+      if (previousData != null) localStorage.setItem(STORAGE_KEY, previousData);
+      if (previousMatch != null) localStorage.setItem(ACTIVE_KEY, previousMatch);
+      else localStorage.removeItem(ACTIVE_KEY);
+    } catch { /* Keep the in-memory data available for export. */ }
+    storageWarning();
+    return false;
   }
 }
 
@@ -1061,6 +1209,15 @@ $("playerStatsButton").addEventListener("click", () => {
 $("startMatchButton").addEventListener("click", startMatch);
 $("submitScoreButton").addEventListener("click", submitScore);
 $("undoButton").addEventListener("click", undo);
+$("bustButton").addEventListener("click", recordBust);
+$("continueGameButton").addEventListener("click", () => {
+  if (!match || match.complete) return;
+  setView("game");
+  if (match.phase !== "playing" && !legEndDialog.open) legEndDialog.showModal();
+});
+$("retrySaveButton").addEventListener("click", () => {
+  if (saveData() && saveMatch()) $("storageNotice").hidden = true;
+});
 $("opponentWonButton").addEventListener("click", () => {
   if (match?.mode === "practice") {
     if (confirm("Finish practice now? You can resume it later from Match History.")) finishMatch();
