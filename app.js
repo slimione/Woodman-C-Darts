@@ -95,6 +95,7 @@ function makeId() {
 }
 
 function setView(name) {
+  document.body?.classList.toggle("scoring-page", name === "game");
   const views = { setup: setupView, game: gameView, history: historyView, detail: detailView, edit: editView, profile: profileView };
   Object.entries(views).forEach(([viewName, element]) => element.classList.toggle("active", viewName === name));
   if (name === "setup") renderSetup();
@@ -165,7 +166,7 @@ function resultCategoryGroupsHTML(records) {
   records.forEach((item) => {
     const date = new Date(item.finishedAt);
     const dayKey = Number.isNaN(date.getTime()) ? "unknown" : `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-    const opponent = isTwoPlayerPractice(item) ? `${item.playerName} v ${item.player2Name}` : item.mode === "practice" ? "Practice" : (item.opponentName || "Opponent");
+    const opponent = isTwoPlayerPractice(item) ? `${item.playerName} v ${item.player2Name}` : item.mode === "practice" ? `${item.playerName} · Solo practice` : `${item.playerName} v ${item.opponentName || "Opponent"}`;
     const key = `${opponent.trim().toLowerCase()}|${dayKey}`;
     if (!groups.has(key)) groups.set(key, { opponent, date: item.finishedAt, items: [] });
     groups.get(key).items.push(item);

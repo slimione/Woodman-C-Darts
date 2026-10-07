@@ -125,7 +125,7 @@ input, select {
 .result-category summary::after { content: "⌄"; grid-column: 3; color: var(--accent); font-size: 1.25rem; transition: transform .18s ease; }
 .result-category[open] summary::after { transform: rotate(180deg); }
 .result-category[open] summary { border-bottom: 1px solid var(--line); background: #e8f6f2; }
-.result-category-title { min-width: 0; overflow: hidden; color: var(--text); font-weight: 850; text-overflow: ellipsis; white-space: nowrap; }
+.result-category-title { min-width: 0; color: var(--text); font-weight: 850; overflow-wrap: anywhere; }
 .result-category-title small { color: var(--muted); font-size: .83rem; font-weight: 650; }
 .result-category-count { color: var(--muted); font-size: .76rem; white-space: nowrap; }
 .result-category-results { display: grid; gap: 8px; padding: 10px; }
@@ -374,6 +374,42 @@ dialog form { padding: 26px; text-align: center; }
   .name-keyboard-row { width: 100%; }
   .name-keyboard-keys button, .name-keyboard-tools button { min-height: 50px; }
   .name-keyboard-tools { grid-template-columns: 2fr repeat(2, 1fr); }
+}
+
+/* Fit the available tablet viewport, including Safari's visible browser bars. */
+@media (min-width: 700px) and (max-width: 1100px) {
+  body.scoring-page .topbar { padding-top: calc(6px + env(safe-area-inset-top)); padding-bottom: 6px; }
+  body.scoring-page .topbar h1 { font-size: 1.7rem; margin-bottom: 0; }
+  body.scoring-page main { padding-top: 4px; padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+  #gameView.active { gap: 8px 12px; }
+  #gameView .match-strip { margin-bottom: 0; }
+  #gameView .score-card { padding: 0; gap: 8px; }
+  #gameView .entry-card { padding: 10px 12px; }
+  #gameView .score-entry { height: 48px; font-size: 2.8rem; }
+  #gameView .keypad { gap: 8px; }
+  #gameView .keypad button { min-height: clamp(48px, 8vh, 78px); min-height: clamp(48px, 8dvh, 78px); font-size: 2.35rem; }
+  #gameView .keypad .key-secondary { font-size: 1.05rem; }
+  #gameView .submit-button { min-height: 52px; margin-top: 8px; font-size: 1.2rem; }
+  #gameView .message { margin-top: 6px; font-size: .85rem; }
+  #gameView .remaining { font-size: clamp(6rem, 18vw, 9rem); }
+  #gameView.two-player-mode .remaining { font-size: clamp(4.5rem, 12vw, 6rem); }
+  #gameView .score-meta { margin-top: 10px; gap: 8px; }
+  #gameView .current-stats-label { margin: 2px 4px 0; }
+  #gameView .stats-card { margin-top: 0; padding: 10px 6px; }
+  #gameView .game-actions { margin-top: 0; }
+  #gameView .game-actions button { min-height: 52px; }
+}
+
+@media (min-width: 700px) and (max-width: 1100px) and (max-height: 720px) {
+  body.scoring-page .topbar .icon-button { width: 44px; height: 44px; }
+  body.scoring-page .topbar h1 { font-size: 1.5rem; }
+  #gameView.active { gap: 4px 12px; }
+  #gameView .active-player-banner { padding: 5px 12px; }
+  #gameView .player-score-panel { padding: 10px; }
+  #gameView .score-entry { height: 32px; padding-top: 0; font-size: 2rem; }
+  #gameView .remaining { font-size: 6.5rem; }
+  #gameView.two-player-mode .remaining { font-size: 4.4rem; }
+  #gameView .score-meta { flex-direction: row; font-size: .85rem; }
 }
 
 @media (display-mode: standalone) {
